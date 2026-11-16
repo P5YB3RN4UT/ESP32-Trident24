@@ -5,3 +5,5 @@
 <h3 align="center">ESP32 Trident24</h3>
 
 ---
+
+## Firmware & Documentation Still In Development 
