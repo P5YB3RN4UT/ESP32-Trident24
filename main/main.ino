@@ -232,7 +232,7 @@ void loop() {
     lastPacketFloodCheck = now;
     isPacketFlood = (packetsInLastSecond > 50); 
     packetsInLastSecond = 0;
-    isJammed = isPacketFlood || (noisyChannels > 0);
+    isJammed = isPacketFlood || (noisyChannels > 1);
     if (isJammed) lastEventTime = now;
   }
 
