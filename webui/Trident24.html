@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRIDENT24 // SYSTEM OVERRIDE</title>
+  <style>
+    :root {
+      --bg-color: #050505;
+      --term-green: #00ff41;
+      --term-dim: #008f11;
+      --panel-border: 1px solid #00ff41;
+    }
+    body {
+      background-color: var(--bg-color);
+      color: var(--term-green);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      margin: 0;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto 1fr 1fr;
+      gap: 15px;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+    .panel {
+      border: var(--panel-border);
+      padding: 15px;
+      background: rgba(0, 255, 65, 0.03);
+      box-shadow: 0 0 10px rgba(0, 255, 65, 0.1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-header {
+      border-bottom: 1px dashed var(--term-dim);
+      padding-bottom: 5px;
+      margin-bottom: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .overview { grid-column: 1 / -1; }
+    .deauth { grid-column: 1 / 2; }
+    .jamming { grid-column: 2 / 3; }
+    .sniffing { grid-column: 1 / -1; }
+    
+    .data-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .label { color: var(--term-dim); }
+    .value { color: var(--term-green); text-shadow: 0 0 4px var(--term-green); }
+    .warning { color: #ff0040; text-shadow: 0 0 5px #ff0040; font-weight: bold; }
+    
+    /* History Section Styling */
+    .history-container {
+      margin-top: 10px;
+      border-top: 1px dashed var(--term-dim);
+      padding-top: 5px;
+      font-size: 11px;
+      max-height: 120px;
+      overflow-y: auto;
+      flex-grow: 1;
+    }
+    .history-entry {
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+    .history-time {
+      color: var(--term-dim);
+    }
+    .history-type {
+      font-weight: bold;
+      margin: 0 4px;
+    }
+    .history-container::-webkit-scrollbar { width: 6px; }
+    .history-container::-webkit-scrollbar-track { background: var(--bg-color); }
+    .history-container::-webkit-scrollbar-thumb { background: var(--term-dim); }
+    
+    #connectBtn {
+      background: transparent;
+      color: var(--term-green);
+      border: 1px solid var(--term-green);
+      padding: 8px 16px;
+      font-family: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+    #connectBtn:hover { background: var(--term-green); color: var(--bg-color); }
+    #connectBtn:disabled { border-color: var(--term-dim); color: var(--term-dim); cursor: not-allowed; }
+    .status-bar {
+      font-size: 11px;
+      color: var(--term-dim);
+      margin-top: auto;
+      padding-top: 10px;
+      border-top: 1px solid var(--term-dim);
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    .cursor { animation: blink 1s step-end infinite; }
+  </style>
+</head>
+<body>
+  <div class="panel overview">
+    <div class="panel-header">[ SYSTEM OVERVIEW ]</div>
+    <button id="connectBtn">CONNECT TO TRIDENT24 (USB)</button>
+    <div class="data-row"><span class="label">STATUS:</span> <span class="value" id="connStatus">DISCONNECTED <span class="cursor">_</span></span></div>
+    <div class="data-row"><span class="label">UPTIME:</span> <span class="value" id="uptime">0s</span></div>
+    <div class="data-row"><span class="label">WIFI CH:</span> <span class="value" id="wifiCh">-</span></div>
+    <div class="status-bar" id="serialLog">Waiting for connection...</div>
+  </div>
+  
+  <div class="panel deauth">
+    <div class="panel-header">[ DEAUTH DETECTION ]</div>
+    <div class="data-row"><span class="label">TOTAL DEAUTHS:</span> <span class="value" id="deauthCount">0</span></div>
+    <div class="data-row"><span class="label">MGMT FRAMES:</span> <span class="value" id="mgmtCount">0</span></div>
+    <div class="data-row"><span class="label">LAST SRC:</span> <span class="value" id="lastDeauthSrc">NONE</span></div>
+    <div class="data-row"><span class="label">LAST DST:</span> <span class="value" id="lastDeauthDst">NONE</span></div>
+    <div class="data-row"><span class="label">STATUS:</span> <span class="value" id="isDeauthDetected">SAFE</span></div>
+    <div class="history-container" id="deauthHistory"></div>
+  </div>
+  
+  <div class="panel jamming">
+    <div class="panel-header">[ JAMMING DETECTION ]</div>
+    <div class="data-row"><span class="label">NOISY CHANNELS:</span> <span class="value" id="noisyChannels">0/100</span></div>
+    <div class="data-row"><span class="label">PKT FLOOD:</span> <span class="value" id="isPacketFlood">CLEAR</span></div>
+    <div class="data-row"><span class="label">STATUS:</span> <span class="value" id="isJammed">SAFE</span></div>
+    <div class="history-container" id="jamHistory"></div>
+  </div>
+  
+  <div class="panel sniffing">
+    <div class="panel-header">[ WIRELESS DEVICE SNIFFING ]</div>
+    <div class="data-row"><span class="label">TOTAL PACKETS:</span> <span class="value" id="sniffTotalPackets">0</span></div>
+    <div class="data-row"><span class="label">LAST LEN:</span> <span class="value" id="lastSniffLen">0 bytes</span></div>
+    <div class="data-row"><span class="label">LAST DATA:</span> <span class="value" id="lastSniffData">WAITING...</span></div>
+    <!-- NEW SNIFFER HISTORY -->
+    <div class="history-container" id="sniffHistory"></div>
+  </div>
+
+  <script>
+    let port;
+    let reader;
+    let keepReading = false;
+    let connectBtn = document.getElementById('connectBtn');
+    let connStatus = document.getElementById('connStatus');
+    let serialLog = document.getElementById('serialLog');
+    
+    // State tracking for history logging
+    let lastDeauthState = false;
+    let lastJamState = false;
+    let lastLoggedSniffData = ''; // Track last logged sniffer payload to prevent spam
+
+    // Variables for calculating Deauth Rate locally in the browser
+    let lastDeauthCount = 0;
+    let deauthRateWindow = []; 
+
+    connectBtn.addEventListener('click', async () => {
+      if (!("serial" in navigator)) {
+        alert("Web Serial API not supported. Please use Chrome, Edge, or Opera.");
+        return;
+      }
+
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        
+        connectBtn.disabled = true;
+        connectBtn.innerText = "CONNECTED";
+        connStatus.innerHTML = "ONLINE <span class='cursor'>_</span>";
+        connStatus.classList.remove('warning');
+        serialLog.innerText = "Receiving telemetry stream...";
+        
+        keepReading = true;
+        readLoop();
+      } catch (err) {
+        console.error("Connection failed:", err);
+        serialLog.innerText = "Connection failed: " + err.message;
+      }
+    });
+
+    async function readLoop() {
+      const textDecoder = new TextDecoderStream();
+      const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+      const reader = textDecoder.readable.getReader();
+      let buffer = "";
+
+      try {
+        while (keepReading) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          
+          buffer += value;
+          let lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+              try {
+                const data = JSON.parse(trimmed);
+                updateUI(data);
+              } catch (e) {
+                console.error("JSON parse error", e);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Read error:", error);
+        serialLog.innerText = "Connection lost. Refresh to reconnect.";
+      } finally {
+        reader.releaseLock();
+        keepReading = false;
+        connectBtn.disabled = false;
+        connectBtn.innerText = "CONNECT TO TRIDENT24 (USB)";
+        connStatus.innerHTML = "DISCONNECTED <span class='cursor'>_</span>";
+      }
+    }
+
+    function getTimestamp() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const h = String(now.getHours()).padStart(2, '0');
+      const min = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      return `${y}-${m}-${d} ${h}:${min}:${s}`;
+    }
+
+    function addHistoryEntry(containerId, type, info1, info2) {
+      const container = document.getElementById(containerId);
+      const timeStr = getTimestamp();
+      
+      const entry = document.createElement('div');
+      entry.className = 'history-entry';
+      
+      let details = '';
+      if (type === 'DEAUTH') {
+        details = `SRC: ${info1} | DST: ${info2}`;
+      } else if (type === 'JAMMING') {
+        details = `Noisy Ch: ${info1}/100 | Flood: ${info2 ? 'YES' : 'NO'}`;
+      } else if (type === 'SNIFFER') {
+        details = `Len: ${info1} bytes | Data: ${info2}`;
+      }
+      
+      entry.innerHTML = `<span class="history-time">[${timeStr}]</span> <span class="history-type warning">${type}</span> ${details}`;
+      
+      // Prepend newest entry to the top
+      container.insertBefore(entry, container.firstChild);
+      
+      // Limit history to last 20 entries to prevent DOM bloat
+      while (container.children.length > 20) {
+        container.removeChild(container.lastChild);
+      }
+    }
+
+    function updateUI(data) {
+      document.getElementById('uptime').innerText = Math.floor(data.uptime / 1000) + 's';
+      document.getElementById('wifiCh').innerText = data.wifiCh;
+      
+      document.getElementById('deauthCount').innerText = data.deauthCount;
+      document.getElementById('mgmtCount').innerText = data.mgmtCount;
+      document.getElementById('lastDeauthSrc').innerText = data.lastDeauthSrc;
+      document.getElementById('lastDeauthDst').innerText = data.lastDeauthDst;
+      
+      // --- BROWSER-SIDE DEAUTH RATE CALCULATION ---
+      const currentCount = data.deauthCount;
+      const delta = currentCount - lastDeauthCount;
+      lastDeauthCount = currentCount;
+      
+      deauthRateWindow.push(delta);
+      if (deauthRateWindow.length > 10) {
+        deauthRateWindow.shift(); 
+      }
+      
+      const rate10s = deauthRateWindow.reduce((a, b) => a + b, 0);
+      const currentDeauthState = (rate10s >= 50); 
+
+      const deauthStatusEl = document.getElementById('isDeauthDetected');
+      deauthStatusEl.innerText = currentDeauthState ? 'DEAUTH DETECTED' : 'SAFE';
+      deauthStatusEl.className = currentDeauthState ? 'value warning' : 'value';
+
+      if (currentDeauthState && !lastDeauthState) {
+        addHistoryEntry('deauthHistory', 'DEAUTH', data.lastDeauthSrc, data.lastDeauthDst);
+      }
+      lastDeauthState = currentDeauthState;
+      
+      document.getElementById('noisyChannels').innerText = data.noisyChannels + '/100';
+      
+      const floodEl = document.getElementById('isPacketFlood');
+      floodEl.innerText = data.isPacketFlood ? 'DETECTED' : 'CLEAR';
+      floodEl.className = data.isPacketFlood ? 'value warning' : 'value';
+      
+      // --- JAMMING STATE & HISTORY LOGIC ---
+      const jamEl = document.getElementById('isJammed');
+      const currentJamState = data.isJammed;
+      jamEl.innerText = currentJamState ? 'JAM DETECTED' : 'SAFE';
+      jamEl.className = currentJamState ? 'value warning' : 'value';
+
+      if (currentJamState && !lastJamState) {
+        addHistoryEntry('jamHistory', 'JAMMING', data.noisyChannels, data.isPacketFlood);
+      }
+      lastJamState = currentJamState;
+      
+      // --- SNIFFER DATA & HISTORY LOGIC ---
+      document.getElementById('sniffTotalPackets').innerText = data.sniffTotalPackets;
+      document.getElementById('lastSniffLen').innerText = data.lastSniffLen + ' bytes';
+      document.getElementById('lastSniffData').innerText = data.lastSniffData;
+
+      // Only log to history if we have data AND it's a new/different payload signature
+      if (data.lastSniffData !== 'WAITING...' && data.lastSniffData !== lastLoggedSniffData) {
+        addHistoryEntry('sniffHistory', 'SNIFFER', data.lastSniffLen, data.lastSniffData);
+        lastLoggedSniffData = data.lastSniffData; // Update tracker to prevent spamming the same packet
+      }
+    }
+  </script>
+</body>
+</html>
