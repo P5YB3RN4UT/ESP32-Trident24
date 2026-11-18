@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TRIDENT24 // SYSTEM OVERRIDE</title>
+  <title>TRIDENT24</title>
   <style>
     :root {
       --bg-color: #050505;
@@ -106,7 +106,7 @@
   <div class="panel overview">
     <div class="panel-header">[ SYSTEM OVERVIEW ]</div>
     <button id="connectBtn">CONNECT TO TRIDENT24 (USB)</button>
-    <div class="data-row"><span class="label">STATUS:</span> <span class="value" id="connStatus">DISCONNECTED <span class="cursor">_</span></span></div>
+    <div class="data-row"><span class="label">STATUS:</span> <span class="value" id="connStatus">DISCONNECTED</span></span></div>
     <div class="data-row"><span class="label">UPTIME:</span> <span class="value" id="uptime">0s</span></div>
     <div class="data-row"><span class="label">WIFI CH:</span> <span class="value" id="wifiCh">-</span></div>
     <div class="status-bar" id="serialLog">Waiting for connection...</div>
@@ -168,7 +168,7 @@
         
         connectBtn.disabled = true;
         connectBtn.innerText = "CONNECTED";
-        connStatus.innerHTML = "ONLINE <span class='cursor'>_</span>";
+        connStatus.innerHTML = "<span class='cursor'>ONLINE</span>";
         connStatus.classList.remove('warning');
         serialLog.innerText = "Receiving telemetry stream...";
         
