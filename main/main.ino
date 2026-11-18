@@ -425,14 +425,12 @@ void loop() {
       lastEventTime = now;
       
       String hexStr = "";
-      int showLen = min((int)len, 8);
-      for (int i = 0; i < showLen; i++) {
+      for (int i = 0; i < len; i++) {       // <--- LOOP THROUGH FULL LENGTH
         if (payload[i] < 0x10) hexStr += "0";
         hexStr += String(payload[i], HEX);
         hexStr += " ";
       }
-      if (len > 8) hexStr += "...";
-      lastSniffData = hexStr;
+      lastSniffData = hexStr;               // <--- NO TRUNCATION
     }
 
     // --- WIFI CHANNEL HOPPING ---
