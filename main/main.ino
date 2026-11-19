@@ -406,9 +406,12 @@ void loop() {
     if (now - lastPacketFloodCheck > 1000) {
       lastPacketFloodCheck = now;
       isPacketFlood = (packetsInLastSecond > 50);
-      packetsInLastSecond = 0;
-      isJammed = isPacketFlood || (noisyChannels > 1);
-      if (isJammed) {
+      
+      // 1. UI/State threshold changed to > 10
+      isJammed = isPacketFlood || (noisyChannels > 10);
+      
+      // 2. LED trigger threshold remains > 1
+      if (isJammed || (noisyChannels > 1)) {
         lastEventTime = now;
       }
     }
@@ -422,7 +425,7 @@ void loop() {
       sniffTotalPackets++;
       packetsInLastSecond++;
       lastSniffLen = len;
-      lastEventTime = now;
+      // lastEventTime = now; // <-- Disabled so sniffer packets don't trigger the LED
       
       String hexStr = "";
       for (int i = 0; i < len; i++) {       // <--- LOOP THROUGH FULL LENGTH
