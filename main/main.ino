@@ -1,4 +1,4 @@
-#include <WiFi.h>               // <-- RESTORED: Required for WiFi.mode and WIFI_STA
+#include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_wifi_types.h>
 #include <SPI.h>
@@ -402,19 +402,20 @@ void loop() {
       }
     }
 
-    // --- PACKET FLOOD CHECK ---
-    if (now - lastPacketFloodCheck > 1000) {
-      lastPacketFloodCheck = now;
-      isPacketFlood = (packetsInLastSecond > 50);
-      
-      // 1. UI/State threshold changed to > 10
-      isJammed = isPacketFlood || (noisyChannels > 10);
-      
-      // 2. LED trigger threshold remains > 1
-      if (isJammed || (noisyChannels > 1)) {
-        lastEventTime = now;
-      }
-    }
+// --- PACKET FLOOD CHECK ---
+if (now - lastPacketFloodCheck > 1000) {
+  lastPacketFloodCheck = now;
+  isPacketFlood = (packetsInLastSecond > 50);
+  // 1. UI/State threshold changed to > 10
+  isJammed = isPacketFlood || (noisyChannels > 10);
+  // 2. LED trigger threshold remains > 1
+  if (isJammed || (noisyChannels > 1)) {
+    lastEventTime = now;
+  }
+  
+  // Reset the counter for the next 1-second window
+  packetsInLastSecond = 0; 
+}
 
     // --- NRF24 PACKET RECEPTION ---
     if (radioSniff.available()) {
@@ -447,37 +448,6 @@ void loop() {
     if (!webUIMode && now - lastDisplayUpdate > 250) {
       lastDisplayUpdate = now;
       updateDisplay();
-    }
-
-    // --- SERIAL TELEMETRY (Web UI Mode Only) ---
-    if (webUIMode && now - lastSerialUpdate > 1000) {
-      lastSerialUpdate = now;
-      
-      // Local copies to prevent concurrent modification issues during string building
-      int l_deauthCount = deauthCount;
-      int l_mgmtCount = mgmtCount;
-      String l_lastDeauthSrc = lastDeauthSrc;
-      String l_lastDeauthDst = lastDeauthDst;
-      int l_noisyChannels = noisyChannels;
-      bool l_isJammed = isJammed;
-      bool l_isPacketFlood = isPacketFlood;
-      int l_sniffTotalPackets = sniffTotalPackets;
-      int l_lastSniffLen = lastSniffLen;
-      String l_lastSniffData = lastSniffData;
-      int l_currentWifiChannel = currentWifiChannel;
-
-      Serial.print("{\"uptime\":"); Serial.print(now);
-      Serial.print(",\"wifiCh\":"); Serial.print(l_currentWifiChannel);
-      Serial.print(",\"deauthCount\":"); Serial.print(l_deauthCount);
-      Serial.print(",\"mgmtCount\":"); Serial.print(l_mgmtCount);
-      Serial.print(",\"lastDeauthSrc\":\""); Serial.print(l_lastDeauthSrc); Serial.print("\"");
-      Serial.print(",\"lastDeauthDst\":\""); Serial.print(l_lastDeauthDst); Serial.print("\"");
-      Serial.print(",\"noisyChannels\":"); Serial.print(l_noisyChannels);
-      Serial.print(",\"isJammed\":"); Serial.print(l_isJammed ? "true" : "false");
-      Serial.print(",\"isPacketFlood\":"); Serial.print(l_isPacketFlood ? "true" : "false");
-      Serial.print(",\"sniffTotalPackets\":"); Serial.print(l_sniffTotalPackets);
-      Serial.print(",\"lastSniffLen\":"); Serial.print(l_lastSniffLen);
-      Serial.print(",\"lastSniffData\":\""); Serial.print(l_lastSniffData); Serial.print("\"}\n");
     }
 
     // --- STATUS LED ---
