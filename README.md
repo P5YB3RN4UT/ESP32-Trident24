@@ -60,7 +60,7 @@ Additional:
 | ESP32   | Resistor          | Status LED |
 |---------|-------------------|------------|
 | GND     |                   | -          |
-| GPIO 27 | 220Ω              | +          |
+| GPIO 27 | 220Ω or 330Ω      | +          |
 
 ### OLED Display
 | 0.96" OLED Display | ESP32  |
@@ -75,6 +75,10 @@ Additional:
 |--------|---------|
 | 1      | GPIO 0  |
 | 2      | GND     |
+
+### Third Antenna
+| The 3rd antenna is plugged to the ESP32 chip itself, whether via IPEX or modded to attach an SMA |
+|--------------------------------------------------------------------------------------------------|
 
 
 ## Installation
