@@ -31,7 +31,7 @@ Required:
 - 220Ω or 330Ω Resistor
 - Tactile Momentary Push Button
 - Status LED
-- 3 x 2.4 GHz Antennas
+- 3 x 2.4 GHz SMA WiFi Antennas
 - IPEX to SMA-F pigtail for Third Antenna
 
 Additional:
@@ -86,8 +86,8 @@ Additional:
 | 2      | GND     |
 
 ### Third Antenna
-| The 3rd antenna is plugged to the ESP32 chip itself, whether via IPEX or modded to attach an SMA |
-|--------------------------------------------------------------------------------------------------|
+| The 3rd antenna is plugged to the ESP32 chip itself, whether via IPEX or modded to attach an SMA-F |
+|----------------------------------------------------------------------------------------------------|
 
 
 ## Installation
