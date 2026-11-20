@@ -134,7 +134,7 @@ Flashing the ESP32:
 #### Standalone
 1. Connect the device by USB to a 5V DC power source (i.e. Power Bank, USB Hub/Charger or available USB Port).
 2. After the 3 second splash screen select option 2 "Standalone" (quick press to scroll, long press to select).
-3. The initial screen gives a basic summary of all systems being monitored. Press the button to scroll through the three detectors.
+3. The initial screen gives a basic summary of all systems being monitored. Press the button to scroll through the three detector screens.
 
 ## Photos
 
