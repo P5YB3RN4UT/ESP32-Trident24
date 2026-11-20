@@ -41,7 +41,7 @@ Additional:
 
 ## Pinout
 
-### HSPI
+#### HSPI
 | nRF24L01 Module 1       | HSPI (ESP32) | 10μF Capacitor |
 |-------------------------|--------------|----------------|
 | VCC                     | 3.3V         | +              |
@@ -53,7 +53,7 @@ Additional:
 | MISO                    | GPIO 12      |
 | IRQ                     |              |
 
-### VSPI 
+#### VSPI 
 | nRF24L01 Module 2       | VSPI (ESP32) | 10μF Capacitor |
 |-------------------------|--------------|----------------|
 | VCC                     | 3.3V         | +              |
@@ -65,13 +65,13 @@ Additional:
 | MISO                    | GPIO 19      |
 | IRQ                     |              |
 
-### Status LED
+#### Status LED
 | ESP32   | Resistor          | Status LED |
 |---------|-------------------|------------|
 | GND     |                   | -          |
 | GPIO 27 | 220Ω or 330Ω      | +          |
 
-### OLED Display
+#### OLED Display
 | 0.96" OLED Display | ESP32  |
 |--------------------|--------|
 | GND                | GND    |
@@ -79,7 +79,7 @@ Additional:
 | SCL                | GPIO 5 |
 | SDA                | GPIO 4 |
 
-### Button
+#### Button
 | Button | ESP32   |
 |--------|---------|
 | 1      | GPIO 0  |
@@ -96,14 +96,15 @@ Additional:
 ## Operation
 
 
-## Web UI
+## Photos
+
+#### Web UI
 
  <img src="https://raw.githubusercontent.com/P5YB3RN4UT/ESP32-Trident24/master/img/webui.png">
 
-
-## Photos
+#### Device
 
  <img src="https://raw.githubusercontent.com/P5YB3RN4UT/ESP32-Trident24/master/img/photo1.jpg">
 
-  <img src="https://raw.githubusercontent.com/P5YB3RN4UT/ESP32-Trident24/master/img/photo2.jpg">
+ <img src="https://raw.githubusercontent.com/P5YB3RN4UT/ESP32-Trident24/master/img/photo2.jpg">
  
