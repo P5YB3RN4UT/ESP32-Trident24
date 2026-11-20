@@ -6,8 +6,6 @@
 
 ---
 
-# ***Note: Firmware & Documentation Still In Development***
-
 ## Summary
 This project involves creating a defensive cybersecurity device using an ESP32 microcontroller that takes a three-pronged approach of passively scanning the 2.4 GHz wireless band. The purpose of which is to display and alert the user of any nearby WiFi activity that might potentially be malicious in nature.
 
@@ -21,7 +19,7 @@ This project includes source code for a passive cybersecurity monitoring tool wi
 
 - <b>Deauth Detection</b>
 
-  <i>Be able to detect potential nearby Deauthentication frames whereby an malicious actor may be attempting a type of denial-of-service attack in an effort to disrupt a specific WiFi network or sniff for a 4-way handshake.</i>
+  <i>Be able to detect potential nearby Deauthentication frames whereby a malicious actor may be attempting a type of denial-of-service attack in an effort to disrupt a specific WiFi network or sniff for a 4-way handshake.</i>
 
 - <b>Jamming Detection</b>
 
@@ -91,10 +89,10 @@ Additional:
 | SDA                | GPIO 4 |
 
 #### Momentary Push Button
-| Button | ESP32   |
-|--------|---------|
-| 1      | GPIO 0  |
-| 2      | GND     |
+| Button Pin | ESP32   |
+|------------|---------|
+| 1          | GPIO 0  |
+| 2          | GND     |
 
 #### Third Antenna
 | The 3rd antenna is plugged to the ESP32 chip itself, whether via IPEX or modded to attach an SMA-F |
@@ -124,6 +122,19 @@ Flashing the ESP32:
 
 ## Operation
 
+#### Web UI
+1. Connect the device by USB to a computer of laptop.
+2. After the 3 second splash screen select option 1 "Web UI" (quick press to scroll, long press to select).
+3. On the computer double click on the Trident24.html file located in the downloaded repository's "webui" folder.
+4. When the browser opens click on the "CONNECT TO TRIDENT24 (USB)" option at the top of the page.
+5. If asked whether to allow this file to access serial ports, select "Allow".
+
+<i>Note: If using a Firefox based browser you will need to enable the Web Serial API prior to any of these instructions. To do so, open Firefox, type "about:config" in the address bar and accept the warning. Once done, search for "dom.webserial.enabled" and double click it to change its value to "true".</i>
+
+#### Standalone
+1. Connect the device by USB to a 5V DC power source (i.e. Power Bank, USB Hub/Charger or available USB Port).
+2. After the 3 second splash screen select option 2 "Standalone" (quick press to scroll, long press to select).
+3. The initial screen gives a basic summary of all systems being monitored. Press the button to scroll through the three detectors.
 
 ## Photos
 
