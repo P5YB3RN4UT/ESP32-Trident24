@@ -15,7 +15,7 @@ This project involves creating a defensive cybersecurity device using an ESP32 m
 
 ## Background
 
-The original concept was borne out of the desire to repurpose existing hardware that had been used in another project without modifying its wiring in any way, shape or form. Having previously built Emensta's original [ESP32-BlueJammer](https://github.com/EmenstaNougat/ESP32-BlueJammer) followed by his much more capable [BlueJammer-V2](https://github.com/EmenstaNougat/BlueJammer-V2), I wanted to use the original BlueJammer hardware to do something else without the need to take it apart (mainly because I had already epoxied the circuitry into a project box using 'Gorilla Glue Clear'). The construction of this device, then, is identical in nature to Emensta's original BlueJammer, however, I will reproduce the pinout and build instructions in this documentation here, not just for clarity, but because I built the device on prefboard rather than use the premade DIY PCB shown in the original BlueJammer repo.
+The original concept was borne out of the desire to repurpose existing hardware that had been used in another project without modifying its wiring in any way, shape or form. Having previously built Emensta's original [ESP32-BlueJammer](https://github.com/EmenstaNougat/ESP32-BlueJammer) followed by his much more capable [BlueJammer-V2](https://github.com/EmenstaNougat/BlueJammer-V2), I wanted to use the original BlueJammer hardware to do something else without the need to take it apart (mainly because I had already epoxied the circuitry into a project box using 'Gorilla Glue Clear'). The construction of this device, then, is identical in nature to Emensta's original BlueJammer, however, I will reproduce the pinout and build instructions in this documentation here, not just for clarity, but because I built the device on perfboard rather than use the premade DIY PCB shown in the original BlueJammer repo.
 
 
 ## Introduction
@@ -24,10 +24,19 @@ The original concept was borne out of the desire to repurpose existing hardware 
 ## Hardware
 
 Required:
+- ESP32 Dev Module
+- 2 x nRF24L01+PA+LNA Modules
+- 10μF Capacitor
+- 0.96" OLED Display I2C
+- 220Ω or 330Ω Resistor
+- Tactile Momentary Push Button
+- Status LED
+- 3 x 2.4 GHz Antennas
+- IPEX to SMA-F pigtail for Third Antenna
 
 Additional:
-1. Perfboard
-2. Pin Headers
+- Perfboard
+- Pin Headers
 
 
 ## Pinout
