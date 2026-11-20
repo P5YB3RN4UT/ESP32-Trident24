@@ -26,7 +26,7 @@ The original concept was borne out of the desire to repurpose existing hardware 
 Required:
 - ESP32 Dev Module
 - 2 x nRF24L01+PA+LNA Modules
-- 10μF Capacitor
+- 2 x 10μF Capacitors
 - 0.96" OLED Display I2C
 - 220Ω or 330Ω Resistor
 - Tactile Momentary Push Button
@@ -79,7 +79,7 @@ Additional:
 | SCL                | GPIO 5 |
 | SDA                | GPIO 4 |
 
-#### Button
+#### Momentary Push Button
 | Button | ESP32   |
 |--------|---------|
 | 1      | GPIO 0  |
