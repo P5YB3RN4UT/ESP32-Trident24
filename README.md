@@ -102,6 +102,24 @@ Additional:
 
 
 ## Installation
+Flashing the ESP32:
+1. Install **Arduino IDE** and add the ESP32 board support package:
+   - Open **Arduino IDE**.
+   - Go to **File > Preferences**.
+   - In **Additional Board Manager URLs**, add:  
+       https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+   - Go to **Tools > Board > Board Manager** and install **esp32 by Espressif Systems**.
+
+2. Install required libraries via the **Library Manager**:
+   - **RF24** by TMRh20.
+   - **Adafruit GFX Library** by Adafruit.
+   - **Adafruit SSD1306** by Adafruit.
+
+3. Download the **ESP32-Trident24** Repository and unzip the contents to the Arduino folder.
+   - Open **Arduino IDE** and go to **File > Open**.
+   - Select the downloaded main.ino file.
+
+4. Compile and upload the code to your ESP32.
 
 
 ## Operation
