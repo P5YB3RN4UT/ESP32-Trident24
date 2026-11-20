@@ -9,16 +9,27 @@
 # ***Note: Firmware & Documentation Still In Development***
 
 ## Summary
-
 This project involves creating a defensive cybersecurity device using an ESP32 microcontroller that takes a three-pronged approach of passively scanning the 2.4 GHz wireless band. The purpose of which is to display and alert the user of any nearby WiFi activity that might potentially be malicious in nature.
 
 
 ## Background
-
 The original concept was borne out of the desire to repurpose existing hardware that had been used in another project without modifying its wiring in any way, shape or form. Having previously built Emensta's original [ESP32-BlueJammer](https://github.com/EmenstaNougat/ESP32-BlueJammer) followed by his much more capable [BlueJammer-V2](https://github.com/EmenstaNougat/BlueJammer-V2), I wanted to use the original BlueJammer hardware to function as something else entirely without the need to take the whole thing apart (mainly because I had already Gorilla glued the circuitry into a project box). The construction of this device, then, is identical in nature to Emensta's original BlueJammer, however, I will reproduce the pinout in this documentation here, not just for clarity, but because I built the device on perfboard rather than use the premade DIY PCB shown in the original BlueJammer repo.
 
 
 ## Introduction
+This project includes source code for a passive cybersecurity monitoring tool with the following requirements:
+
+- <b>Deauth Detection</b>
+
+  <i>Be able to detect potential nearby Deauthentication frames whereby an malicious actor may be attempting a type of denial-of-service attack in an effort to disrupt a specific WiFi network or sniff for a 4-way handshake.</i>
+
+- <b>Jamming Detection</b>
+
+   <i>Be able to detect the deliberate nearby blocking or interference of 2.4 GHz wireless communications.</i>
+
+- <b>Device Sniffing</b>
+
+  <i>Detect and obtain information of nearby WiFi devices operating on the 2.4 GHz band.</i>
 
 
 ## Hardware
@@ -85,7 +96,7 @@ Additional:
 | 1      | GPIO 0  |
 | 2      | GND     |
 
-### Third Antenna
+#### Third Antenna
 | The 3rd antenna is plugged to the ESP32 chip itself, whether via IPEX or modded to attach an SMA-F |
 |----------------------------------------------------------------------------------------------------|
 
