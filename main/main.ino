@@ -85,22 +85,44 @@ void drawTridentLogo() {
   const int cx = 64;
   const int cy = 47;
 
-  display.fillTriangle(64, 3, 56, 19, 72, 19, SSD1306_WHITE);
-  display.fillRect(61, 16, 6, 18, SSD1306_WHITE);
+  // --- TOP HALF: THREE-PRONGED TRIDENT (REBUILT FOR PERFECT SYMMETRY & CURVES) ---
+  
+  // 1. Center prong (Sharp, perfectly centered triangle)
+  // Tip at x=64, base width 12px at y=26
+  display.fillTriangle(64, 2, 58, 26, 70, 26, SSD1306_WHITE);
+  
+  // 2. Left prong (Curved outwards using 3 overlapping triangles for a smooth blade look)
+  // Outer edge curves from tip (40,6) out to (36,18) and back in to (40,26)
+  display.fillTriangle(40, 6, 36, 18, 42, 18, SSD1306_WHITE);
+  display.fillTriangle(36, 18, 42, 18, 40, 26, SSD1306_WHITE);
+  display.fillTriangle(42, 18, 40, 26, 52, 26, SSD1306_WHITE); // Connects to crossguard
+  
+  // 3. Right prong (Perfect mathematical mirror of the left prong)
+  // Outer edge curves from tip (88,6) out to (92,18) and back in to (88,26)
+  display.fillTriangle(88, 6, 92, 18, 86, 18, SSD1306_WHITE);
+  display.fillTriangle(92, 18, 86, 18, 88, 26, SSD1306_WHITE);
+  display.fillTriangle(86, 18, 88, 26, 76, 26, SSD1306_WHITE); // Connects to crossguard
 
-  display.fillTriangle(52, 12, 42, 6, 53, 34, SSD1306_WHITE);
-  display.fillTriangle(52, 12, 58, 18, 56, 31, SSD1306_WHITE);
+  // 4. Crossguard (Connects the three prongs seamlessly at their base)
+  // Spans from x=52 to x=76, perfectly bridging the inner bases of the side prongs
+  display.fillRect(52, 26, 24, 4, SSD1306_WHITE);
+  
+  // 5. Center shaft (Connects the crossguard down to the handle)
+  // Starts just below the crossguard (y=30) and ends exactly at the handle bar (y=45)
+  display.fillRect(61, 30, 6, 15, SSD1306_WHITE);
 
-  display.fillTriangle(76, 12, 86, 6, 75, 34, SSD1306_WHITE);
-  display.fillTriangle(76, 12, 70, 18, 72, 31, SSD1306_WHITE);
-
+  // --- BOTTOM HALF: HANDLE / BASE (Unchanged, connects perfectly to the new shaft) ---
   display.drawCircle(cx, cy, 15, SSD1306_WHITE);
   display.drawCircle(cx, cy, 14, SSD1306_WHITE);
   display.fillCircle(cx, cy, 11, SSD1306_BLACK);
+  
+  // Horizontal bar 
   display.fillRect(31, 45, 66, 5, SSD1306_WHITE);
+  
   display.fillCircle(cx, cy, 9, SSD1306_BLACK);
   display.fillCircle(61, 44, 3, SSD1306_WHITE);
   display.fillCircle(67, 44, 3, SSD1306_WHITE);
+  
   display.drawCircle(64, 54, 5, SSD1306_WHITE);
   display.drawCircle(64, 54, 3, SSD1306_WHITE);
   display.fillCircle(64, 54, 1, SSD1306_WHITE);
