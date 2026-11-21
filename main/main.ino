@@ -406,7 +406,7 @@ void loop() {
 if (now - lastPacketFloodCheck > 1000) {
   lastPacketFloodCheck = now;
   isPacketFlood = (packetsInLastSecond > 50);
-  // 1. UI/State threshold changed to > 10
+  // 1. UI/State threshold changed to > 20
   isJammed = isPacketFlood || (noisyChannels > 20);
   // 2. LED trigger threshold remains > 1
   if (isJammed || (noisyChannels > 1)) {
