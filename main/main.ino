@@ -157,12 +157,23 @@ String macToString(const uint8_t* mac) {
 }
 
 void wifi_promiscuous_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
-  if (type != WIFI_PKT_MGMT) return;
-  mgmtCount++;
+  // FIX: Accept WIFI_PKT_MISC as well as WIFI_PKT_MGMT. 
+  // Raw injected frames (like those from Evil-M5Project) are often classified as MISC 
+  // by the ESP32 hardware, causing them to be silently dropped by a strict MGMT check.
+  if (type != WIFI_PKT_MGMT && type != WIFI_PKT_MISC) return;
+  
+  // Only increment mgmtCount for actual MGMT frames to keep stats accurate
+  if (type == WIFI_PKT_MGMT) {
+    mgmtCount++;
+  }
+  
   const wifi_promiscuous_pkt_t* pkt = (wifi_promiscuous_pkt_t*)buf;
   const wifi_ieee80211_packet_t* ipkt = (wifi_ieee80211_packet_t*)pkt->payload;
   const wifi_ieee80211_mac_hdr_t* hdr = &ipkt->hdr;
   
+  // 0x00C0 = Deauthentication (Type 0, Subtype 12)
+  // 0x00A0 = Disassociation (Type 0, Subtype 10)
+  // 0x00FC mask isolates Type and Subtype bits, ignoring To DS / From DS flags
   if ((hdr->frame_ctrl & 0x00FC) == 0x00C0 || (hdr->frame_ctrl & 0x00FC) == 0x00A0) {
     deauthCount++;
     lastDeauthSrc = macToString(hdr->addr2);

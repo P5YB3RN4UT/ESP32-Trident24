@@ -277,7 +277,11 @@
       }
       
       const rate10s = deauthRateWindow.reduce((a, b) => a + b, 0);
-      const currentDeauthState = (rate10s >= 50); 
+      
+      // FIX: Lowered threshold to catch bursts that are partially missed due to channel hopping.
+      // Triggers immediately if ANY deauth is detected in the current 1-second window (delta > 0),
+      // or if a sustained low-rate attack is detected (rate10s >= 5).
+      const currentDeauthState = (delta > 0 || rate10s >= 5); 
 
       const deauthStatusEl = document.getElementById('isDeauthDetected');
       deauthStatusEl.innerText = currentDeauthState ? 'DEAUTH DETECTED' : 'SAFE';
