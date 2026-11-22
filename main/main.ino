@@ -76,6 +76,12 @@ bool buttonPressed = false;
 
 unsigned long lastSerialUpdate = 0;
 
+// --- FALSE POSITIVE SUPPRESSION ---
+#define MAX_IGNORED_MACS 10
+uint8_t ignoredMacs[MAX_IGNORED_MACS][6];
+int ignoredMacCount = 0;
+String serialCmdBuffer = "";
+
 // ==========================================
 // TRIDENT LOGO DRAWING FUNCTION
 // ==========================================
@@ -178,6 +184,23 @@ String macToString(const uint8_t* mac) {
   return String(buf);
 }
 
+bool isMacIgnored(const uint8_t* mac) {
+  for (int i = 0; i < ignoredMacCount; i++) {
+    if (memcmp(ignoredMacs[i], mac, 6) == 0) return true;
+  }
+  return false;
+}
+
+bool parseMacString(String macStr, uint8_t* mac) {
+  macStr.trim();
+  if (macStr.length() != 17) return false; // Ensure format XX:XX:XX:XX:XX:XX
+  for (int i = 0; i < 6; i++) {
+    String byteStr = macStr.substring(i * 3, i * 3 + 2);
+    mac[i] = strtoul(byteStr.c_str(), NULL, 16);
+  }
+  return true;
+}
+
 void wifi_promiscuous_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
   // FIX: Accept WIFI_PKT_MISC as well as WIFI_PKT_MGMT. 
   // Raw injected frames (like those from Evil-M5Project) are often classified as MISC 
@@ -197,6 +220,13 @@ void wifi_promiscuous_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
   // 0x00A0 = Disassociation (Type 0, Subtype 10)
   // 0x00FC mask isolates Type and Subtype bits, ignoring To DS / From DS flags
   if ((hdr->frame_ctrl & 0x00FC) == 0x00C0 || (hdr->frame_ctrl & 0x00FC) == 0x00A0) {
+    
+    // --- SUPPRESSION CHECK ---
+    // If either the Source or Destination is in our ignore list, drop it silently
+    if (isMacIgnored(hdr->addr1) || isMacIgnored(hdr->addr2)) {
+      return; 
+    }
+
     deauthCount++;
     lastDeauthSrc = macToString(hdr->addr2);
     lastDeauthDst = macToString(hdr->addr1);
@@ -402,7 +432,29 @@ void loop() {
     lastButtonStateMenu = reading;
   } 
   else if (startupState == RUNNING) {
-    
+
+        // --- LISTEN FOR WEBUI COMMANDS ---
+    while (Serial.available()) {
+      char c = Serial.read();
+      if (c == '\n' || c == '\r') {
+        if (serialCmdBuffer.length() > 0) {
+          if (serialCmdBuffer.startsWith("IGNORE:")) {
+            String macStr = serialCmdBuffer.substring(7);
+            uint8_t mac[6];
+            if (parseMacString(macStr, mac)) {
+              if (ignoredMacCount < MAX_IGNORED_MACS) {
+                memcpy(ignoredMacs[ignoredMacCount], mac, 6);
+                ignoredMacCount++;
+              }
+            }
+          }
+          serialCmdBuffer = "";
+        }
+      } else {
+        serialCmdBuffer += c;
+      }
+    }
+
     // --- BUTTON HANDLING (Standalone Mode Only) ---
     if (!webUIMode) {
       int reading = digitalRead(MODE_BUTTON);
