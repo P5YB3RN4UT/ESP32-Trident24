@@ -272,8 +272,8 @@
       // Prepend newest entry to the top
       container.insertBefore(entry, container.firstChild);
       
-      // Limit history to last 20 entries to prevent DOM bloat
-      while (container.children.length > 20) {
+      // Limit history to last 1000
+      while (container.children.length > 1000) {
         container.removeChild(container.lastChild);
       }
     }
