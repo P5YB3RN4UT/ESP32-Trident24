@@ -19,7 +19,7 @@ This project includes source code for a passive cybersecurity monitoring tool wi
 
 - <b>Deauth Detection</b>
 
-  <i>Be able to detect potential nearby Deauthentication frames whereby a malicious actor may be attempting a type of denial-of-service attack in an effort to disrupt a specific WiFi network or sniff for a 4-way handshake.</i>
+  <i>Be able to detect potential nearby Deauthentication frames whereby a malicious hacker may be attempting a type of denial-of-service attack in an effort to disrupt a specific WiFi network and/or capture a 4-way handshake.</i>
 
 - <b>Jamming Detection</b>
 
