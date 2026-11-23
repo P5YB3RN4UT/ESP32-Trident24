@@ -52,7 +52,6 @@
     .value { color: var(--term-green); text-shadow: 0 0 4px var(--term-green); }
     .warning { color: #ff0040; text-shadow: 0 0 5px #ff0040; font-weight: bold; }
     
-    /* History Section Styling */
     .history-container {
       margin-top: 10px;
       border-top: 1px dashed var(--term-dim);
@@ -110,8 +109,30 @@
       margin-left: 5px;
       font-family: inherit;
       vertical-align: middle;
+      position: relative;
     }
     .ignore-btn:hover { color: #ff0040; border-color: #ff0040; }
+    .oui-btn[data-full-oui]:hover::after {
+      content: attr(data-full-oui);
+      position: absolute;
+      bottom: calc(100% + 5px);
+      left: 0;
+      background-color: var(--bg-color);
+      color: var(--term-green);
+      border: 1px solid var(--term-green);
+      padding: 4px 8px;
+      font-size: 11px;
+      white-space: nowrap;
+      z-index: 100;
+      box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+      pointer-events: none;
+      opacity: 0;
+      animation: fadeIn 0.2s forwards;
+    }
+
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
     .ignored-entry { opacity: 0.4; text-decoration: line-through; }
   </style>
 </head>
@@ -119,7 +140,7 @@
   <div class="panel overview">
     <div class="panel-header">[ SYSTEM OVERVIEW ]</div>
     <button id="connectBtn">CONNECT TO TRIDENT24 (USB)</button>
-    <div class="data-row"><span class="label">STATUS:</span> <span class="value" id="connStatus">DISCONNECTED</span></span></div>
+    <div class="data-row"><span class="label">STATUS:</span> <span class="value" id="connStatus">DISCONNECTED</span></div>
     <div class="data-row"><span class="label">UPTIME:</span> <span class="value" id="uptime">0s</span></div>
     <div class="data-row"><span class="label">WIFI CH:</span> <span class="value" id="wifiCh">-</span></div>
     <div class="status-bar" id="serialLog">Waiting for connection...</div>
@@ -148,7 +169,6 @@
     <div class="data-row"><span class="label">TOTAL PACKETS:</span> <span class="value" id="sniffTotalPackets">0</span></div>
     <div class="data-row"><span class="label">LAST LEN:</span> <span class="value" id="lastSniffLen">0 bytes</span></div>
     <div class="data-row"><span class="label">LAST DATA:</span> <span class="value" id="lastSniffData">WAITING...</span></div>
-    <!-- NEW SNIFFER HISTORY -->
     <div class="history-container" id="sniffHistory"></div>
   </div>
 
@@ -161,12 +181,10 @@
     let connStatus = document.getElementById('connStatus');
     let serialLog = document.getElementById('serialLog');
     
-    // State tracking for history logging
     let lastDeauthState = false;
     let lastJamState = false;
-    let lastLoggedSniffData = ''; // Track last logged sniffer payload to prevent spam
+    let lastLoggedSniffData = '';
 
-    // Variables for calculating Deauth Rate locally in the browser
     let lastDeauthCount = 0;
     let deauthRateWindow = []; 
 
@@ -180,7 +198,6 @@
         port = await navigator.serial.requestPort();
         await port.open({ baudRate: 115200 });
 
-        // Initialize Serial Writer for sending commands to ESP32
         const textEncoder = new TextEncoderStream();
         const writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
         writer = textEncoder.writable.getWriter();
@@ -260,7 +277,9 @@
       if (type === 'DEAUTH') {
         details = `SRC: ${info1} | DST: ${info2} 
                    <button class="ignore-btn" data-mac="${info1}">Ignore SRC</button>
-                   <button class="ignore-btn" data-mac="${info2}">Ignore DST</button>`;
+                   <button class="ignore-btn" data-mac="${info2}">Ignore DST</button>
+                   <button class="ignore-btn oui-btn" data-mac="${info1}">OUI SRC</button>
+                   <button class="ignore-btn oui-btn" data-mac="${info2}">OUI DST</button>`;
       } else if (type === 'JAMMING') {
         details = `Noisy Ch: ${info1}/100 | Flood: ${info2 ? 'YES' : 'NO'}`;
       } else if (type === 'SNIFFER') {
@@ -269,10 +288,8 @@
       
       entry.innerHTML = `<span class="history-time">[${timeStr}]</span> <span class="history-type warning">${type}</span> ${details}`;
       
-      // Prepend newest entry to the top
       container.insertBefore(entry, container.firstChild);
       
-      // Limit history to last 1000
       while (container.children.length > 1000) {
         container.removeChild(container.lastChild);
       }
@@ -287,7 +304,6 @@
       document.getElementById('lastDeauthSrc').innerText = data.lastDeauthSrc;
       document.getElementById('lastDeauthDst').innerText = data.lastDeauthDst;
       
-      // --- BROWSER-SIDE DEAUTH RATE CALCULATION ---
       const currentCount = data.deauthCount;
       const delta = currentCount - lastDeauthCount;
       lastDeauthCount = currentCount;
@@ -298,10 +314,6 @@
       }
       
       const rate10s = deauthRateWindow.reduce((a, b) => a + b, 0);
-      
-      // FIX: Lowered threshold to catch bursts that are partially missed due to channel hopping.
-      // Triggers immediately if ANY deauth is detected in the current 1-second window (delta > 0),
-      // or if a sustained low-rate attack is detected (rate10s >= 5).
       const currentDeauthState = (delta > 0 || rate10s >= 5); 
 
       const deauthStatusEl = document.getElementById('isDeauthDetected');
@@ -319,7 +331,6 @@
       floodEl.innerText = data.isPacketFlood ? 'DETECTED' : 'CLEAR';
       floodEl.className = data.isPacketFlood ? 'value warning' : 'value';
       
-      // --- JAMMING STATE & HISTORY LOGIC ---
       const jamEl = document.getElementById('isJammed');
       const currentJamState = data.isJammed;
       jamEl.innerText = currentJamState ? 'JAM DETECTED' : 'SAFE';
@@ -330,31 +341,76 @@
       }
       lastJamState = currentJamState;
       
-      // --- SNIFFER DATA & HISTORY LOGIC ---
       document.getElementById('sniffTotalPackets').innerText = data.sniffTotalPackets;
       document.getElementById('lastSniffLen').innerText = data.lastSniffLen + ' bytes';
       document.getElementById('lastSniffData').innerText = data.lastSniffData;
 
-      // Only log to history if we have data AND it's a new/different payload signature
       if (data.lastSniffData !== 'WAITING...' && data.lastSniffData !== lastLoggedSniffData) {
         addHistoryEntry('sniffHistory', 'SNIFFER', data.lastSniffLen, data.lastSniffData);
-        lastLoggedSniffData = data.lastSniffData; // Update tracker to prevent spamming the same packet
+        lastLoggedSniffData = data.lastSniffData;
       }
     }
-    // --- HANDLE IGNORE BUTTON CLICKS ---
+
+    // --- HANDLE HISTORY BUTTON CLICKS ---
     document.getElementById('deauthHistory').addEventListener('click', async (e) => {
-      if (e.target.classList.contains('ignore-btn')) {
+      // Handle OUI Lookup
+      if (e.target.classList.contains('oui-btn')) {
+        // Clean the MAC address to prevent formatting issues
+        let mac = e.target.getAttribute('data-mac').trim().replace(/[^0-9A-Fa-f:]/g, '');
+        
+        e.target.innerText = "Loading...";
+        e.target.disabled = true;
+        
+        try {
+          const response = await fetch(`https://opensystools.com/api/v1/mac?mac=${encodeURIComponent(mac)}`);
+          
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          const data = await response.json();
+          
+          if (data.company) {
+            const fullCompany = data.company;
+            const maxLength = 15;
+            
+            // Truncate to 15 characters max (including the '...' ellipsis)
+            const displayText = fullCompany.length > maxLength 
+              ? fullCompany.substring(0, maxLength - 3) + '...' 
+              : fullCompany;
+              
+            e.target.innerText = displayText;
+            e.target.style.color = "var(--term-green)";
+            e.target.style.borderColor = "var(--term-green)";
+            
+            // Store full text for the hover tooltip (includes address if available)
+            const tooltipText = data.company_address 
+              ? `${fullCompany} | ${data.company_address}` 
+              : fullCompany;
+              
+            e.target.setAttribute('data-full-oui', tooltipText); // Triggers custom CSS tooltip
+            e.target.title = tooltipText;                        // Native fallback tooltip
+          } else {
+            e.target.innerText = "Unknown";
+            e.target.style.color = "var(--term-dim)";
+            e.target.title = "Unknown Vendor";
+          }
+        } catch (error) {
+          console.error("No Data:", error);
+          e.target.innerText = "No Data";
+          e.target.style.color = "#ff0040";
+          e.target.title = "No Data";
+        }
+        return;
+      }
+
+      // Handle Ignore
+      if (e.target.classList.contains('ignore-btn') && !e.target.classList.contains('oui-btn')) {
         const mac = e.target.getAttribute('data-mac');
         
         if (writer) {
-          // Send command to ESP32
           await writer.write(`IGNORE:${mac}\n`);
           
-          // Visual feedback in the WebUI
           const entry = e.target.closest('.history-entry');
           entry.classList.add('ignored-entry');
           
-          // Disable the clicked button and change its text
           e.target.disabled = true;
           e.target.innerText = "Ignored";
           e.target.style.cursor = "default";
