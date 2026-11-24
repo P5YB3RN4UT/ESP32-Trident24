@@ -42,7 +42,29 @@
       text-transform: uppercase;
       letter-spacing: 2px;
     }
+    
     .overview { grid-column: 1 / -1; }
+    
+    /* NEW: Flexbox layout to split Overview into left (text) and right (analyzer) */
+    .overview-content {
+      display: flex;
+      flex-direction: row;
+      gap: 20px;
+      flex-grow: 1;
+    }
+    .overview-left {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .overview-right {
+      width: 220px; /* Small footprint */
+      display: flex;
+      flex-direction: column;
+      border-left: 1px dashed var(--term-dim);
+      padding-left: 15px;
+    }
+    
     .deauth { grid-column: 1 / 2; }
     .jamming { grid-column: 2 / 3; }
     .sniffing { grid-column: 1 / -1; }
@@ -61,17 +83,9 @@
       overflow-y: auto;
       flex-grow: 1;
     }
-    .history-entry {
-      margin-bottom: 4px;
-      word-break: break-all;
-    }
-    .history-time {
-      color: var(--term-dim);
-    }
-    .history-type {
-      font-weight: bold;
-      margin: 0 4px;
-    }
+    .history-entry { margin-bottom: 4px; word-break: break-all; }
+    .history-time { color: var(--term-dim); }
+    .history-type { font-weight: bold; margin: 0 4px; }
     .history-container::-webkit-scrollbar { width: 6px; }
     .history-container::-webkit-scrollbar-track { background: var(--bg-color); }
     .history-container::-webkit-scrollbar-thumb { background: var(--term-dim); }
@@ -129,21 +143,46 @@
       opacity: 0;
       animation: fadeIn 0.2s forwards;
     }
-
-    @keyframes fadeIn {
-      to { opacity: 1; }
-    }
+    @keyframes fadeIn { to { opacity: 1; } }
     .ignored-entry { opacity: 0.4; text-decoration: line-through; }
+
+    /* NEW: Canvas styling for the small spectrum analyzer */
+    #spectrumCanvas {
+      flex-grow: 1;
+      width: 100%;
+      background: var(--bg-color);
+      border: 1px solid var(--term-dim);
+      margin-top: 5px;
+    }
+    .analyzer-header {
+      font-size: 10px;
+      color: var(--term-dim);
+      text-align: center;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
   </style>
 </head>
 <body>
   <div class="panel overview">
     <div class="panel-header">[ SYSTEM OVERVIEW ]</div>
-    <button id="connectBtn">CONNECT TO TRIDENT24 (USB)</button>
-    <div class="data-row"><span class="label">STATUS:</span> <span class="value" id="connStatus">DISCONNECTED</span></div>
-    <div class="data-row"><span class="label">UPTIME:</span> <span class="value" id="uptime">0s</span></div>
-    <div class="data-row"><span class="label">WIFI CH:</span> <span class="value" id="wifiCh">-</span></div>
-    <div class="status-bar" id="serialLog">Waiting for connection...</div>
+    
+    <div class="overview-content">
+      <!-- Left Side: Standard Overview Data -->
+      <div class="overview-left">
+        <button id="connectBtn">CONNECT TO TRIDENT24 (USB)</button>
+        <div class="data-row"><span class="label">STATUS:</span> <span class="value" id="connStatus">DISCONNECTED</span></div>
+        <div class="data-row"><span class="label">UPTIME:</span> <span class="value" id="uptime">0s</span></div>
+        <div class="data-row"><span class="label">WIFI CH:</span> <span class="value" id="wifiCh">-</span></div>
+        <div class="status-bar" id="serialLog">Waiting for connection...</div>
+      </div>
+
+      <!-- Right Side: Small Channel Analyzer -->
+      <div class="overview-right">
+        <div class="analyzer-header">[ 2.4GHZ SPECTRUM ]</div>
+        <canvas id="spectrumCanvas"></canvas>
+      </div>
+    </div>
   </div>
   
   <div class="panel deauth">
@@ -159,6 +198,7 @@
   <div class="panel jamming">
     <div class="panel-header">[ JAMMING DETECTION ]</div>
     <div class="data-row"><span class="label">NOISY CHANNELS:</span> <span class="value" id="noisyChannels">0/100</span></div>
+    <div class="data-row"><span class="label">INTENSITY:</span> <span class="value" id="jamIntensity">0%</span></div> <!-- NEW LINE -->
     <div class="data-row"><span class="label">PKT FLOOD:</span> <span class="value" id="isPacketFlood">CLEAR</span></div>
     <div class="data-row"><span class="label">STATUS:</span> <span class="value" id="isJammed">SAFE</span></div>
     <div class="history-container" id="jamHistory"></div>
@@ -187,6 +227,9 @@
 
     let lastDeauthCount = 0;
     let deauthRateWindow = []; 
+    
+    // NEW: Persistent levels for the spectrum analyzer (decays over time)
+    let channelLevels = new Array(13).fill(0);
 
     connectBtn.addEventListener('click', async () => {
       if (!("serial" in navigator)) {
@@ -266,6 +309,64 @@
       return `${y}-${m}-${d} ${h}:${min}:${s}`;
     }
 
+    // ==========================================
+    // SPECTRUM ANALYZER ANIMATION LOOP
+    // ==========================================
+    const canvas = document.getElementById('spectrumCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function animateSpectrum() {
+      // 1. Fade effect: Draw a semi-transparent background over the previous frame
+      // This creates the smooth "fading over time" trail effect
+      ctx.fillStyle = 'rgba(5, 5, 5, 0.25)'; 
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const labelHeight = 14;
+      const graphHeight = canvas.height - labelHeight;
+      const barWidth = canvas.width / 13;
+
+      for (let i = 0; i < 13; i++) {
+        // 2. Decay the level so bars smoothly fall back down
+        channelLevels[i] *= 0.92; 
+        if (channelLevels[i] < 0.5) channelLevels[i] = 0;
+
+        const val = channelLevels[i];
+        // Map value to height (max height is graphHeight)
+        const barHeight = Math.min((val / 50) * graphHeight, graphHeight); 
+        const x = i * barWidth;
+        const y = graphHeight - barHeight;
+
+        // 3. Changing colour based on intensity
+        let color = '#008f11'; // Dim green
+        if (val > 15) color = '#00ff41'; // Bright cyberpunk green
+        if (val > 35) color = '#ff0040'; // Red warning
+
+        ctx.fillStyle = color;
+        // Draw the bar with a tiny gap for a segmented look
+        ctx.fillRect(x + 2, y, barWidth - 4, barHeight);
+      }
+
+      // 4. Draw channel labels along the bottom (Solid, so they don't fade out)
+      ctx.fillStyle = '#008f11';
+      ctx.font = '10px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      for (let i = 0; i < 13; i++) {
+        ctx.fillText((i + 1).toString(), i * barWidth + barWidth / 2, graphHeight + 2);
+      }
+
+      requestAnimationFrame(animateSpectrum);
+    }
+    // Start the animation loop immediately
+    requestAnimationFrame(animateSpectrum);
+
     function addHistoryEntry(containerId, type, info1, info2) {
       const container = document.getElementById(containerId);
       const timeStr = getTimestamp();
@@ -327,6 +428,16 @@
       
       document.getElementById('noisyChannels').innerText = data.noisyChannels + '/100';
       
+      // NEW: Update Jamming Intensity
+      if (data.jamIntensity !== undefined) {
+        const intensityEl = document.getElementById('jamIntensity');
+        intensityEl.innerText = data.jamIntensity + '%';
+        // Color-code the intensity
+        if (data.jamIntensity > 50) intensityEl.className = 'value warning';
+        else if (data.jamIntensity > 10) intensityEl.style.color = '#ffff00'; // Yellow for moderate
+        else intensityEl.style.color = 'var(--term-green)';
+      }
+      
       const floodEl = document.getElementById('isPacketFlood');
       floodEl.innerText = data.isPacketFlood ? 'DETECTED' : 'CLEAR';
       floodEl.className = data.isPacketFlood ? 'value warning' : 'value';
@@ -349,44 +460,36 @@
         addHistoryEntry('sniffHistory', 'SNIFFER', data.lastSniffLen, data.lastSniffData);
         lastLoggedSniffData = data.lastSniffData;
       }
+
+      // NEW: Feed the 1-second snapshot into the persistent analyzer levels
+      if (data.chActivity) {
+        for(let i = 0; i < 13; i++) {
+          // Multiply by 10 to give the bars more visual height for small packet counts
+          channelLevels[i] += data.chActivity[i] * 10; 
+        }
+      }
     }
 
     // --- HANDLE HISTORY BUTTON CLICKS ---
     document.getElementById('deauthHistory').addEventListener('click', async (e) => {
-      // Handle OUI Lookup
       if (e.target.classList.contains('oui-btn')) {
-        // Clean the MAC address to prevent formatting issues
         let mac = e.target.getAttribute('data-mac').trim().replace(/[^0-9A-Fa-f:]/g, '');
-        
         e.target.innerText = "Loading...";
         e.target.disabled = true;
-        
         try {
           const response = await fetch(`https://opensystools.com/api/v1/mac?mac=${encodeURIComponent(mac)}`);
-          
           if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
           const data = await response.json();
-          
           if (data.company) {
             const fullCompany = data.company;
             const maxLength = 15;
-            
-            // Truncate to 15 characters max (including the '...' ellipsis)
-            const displayText = fullCompany.length > maxLength 
-              ? fullCompany.substring(0, maxLength - 3) + '...' 
-              : fullCompany;
-              
+            const displayText = fullCompany.length > maxLength ? fullCompany.substring(0, maxLength - 3) + '...' : fullCompany;
             e.target.innerText = displayText;
             e.target.style.color = "var(--term-green)";
             e.target.style.borderColor = "var(--term-green)";
-            
-            // Store full text for the hover tooltip (includes address if available)
-            const tooltipText = data.company_address 
-              ? `${fullCompany} | ${data.company_address}` 
-              : fullCompany;
-              
-            e.target.setAttribute('data-full-oui', tooltipText); // Triggers custom CSS tooltip
-            e.target.title = tooltipText;                        // Native fallback tooltip
+            const tooltipText = data.company_address ? `${fullCompany} | ${data.company_address}` : fullCompany;
+            e.target.setAttribute('data-full-oui', tooltipText);
+            e.target.title = tooltipText;
           } else {
             e.target.innerText = "Unknown";
             e.target.style.color = "var(--term-dim)";
@@ -401,16 +504,12 @@
         return;
       }
 
-      // Handle Ignore
       if (e.target.classList.contains('ignore-btn') && !e.target.classList.contains('oui-btn')) {
         const mac = e.target.getAttribute('data-mac');
-        
         if (writer) {
           await writer.write(`IGNORE:${mac}\n`);
-          
           const entry = e.target.closest('.history-entry');
           entry.classList.add('ignored-entry');
-          
           e.target.disabled = true;
           e.target.innerText = "Ignored";
           e.target.style.cursor = "default";

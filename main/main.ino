@@ -76,6 +76,9 @@ bool buttonPressed = false;
 
 unsigned long lastSerialUpdate = 0;
 
+// --- SIGNAL ANALYZER ---
+volatile int channelActivity[14] = {0}; // Index 1 to 13 for WiFi channels
+
 // --- FALSE POSITIVE SUPPRESSION ---
 #define MAX_IGNORED_MACS 10
 uint8_t ignoredMacs[MAX_IGNORED_MACS][6];
@@ -210,6 +213,11 @@ void wifi_promiscuous_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
   // Only increment mgmtCount for actual MGMT frames to keep stats accurate
   if (type == WIFI_PKT_MGMT) {
     mgmtCount++;
+  }
+
+    // Track per-channel activity for the Web UI signal analyzer
+  if (currentWifiChannel >= 1 && currentWifiChannel <= 13) {
+    channelActivity[currentWifiChannel]++;
   }
   
   const wifi_promiscuous_pkt_t* pkt = (wifi_promiscuous_pkt_t*)buf;
@@ -386,11 +394,24 @@ void loop() {
       Serial.print(",\"lastDeauthSrc\":\""); Serial.print(l_lastDeauthSrc); Serial.print("\"");
       Serial.print(",\"lastDeauthDst\":\""); Serial.print(l_lastDeauthDst); Serial.print("\"");
       Serial.print(",\"noisyChannels\":"); Serial.print(l_noisyChannels);
+      // NEW: Add jamming intensity percentage (0-100%)
+      Serial.print(",\"jamIntensity\":"); Serial.print(min(100, (l_noisyChannels * 5))); 
       Serial.print(",\"isJammed\":"); Serial.print(l_isJammed ? "true" : "false");
       Serial.print(",\"isPacketFlood\":"); Serial.print(l_isPacketFlood ? "true" : "false");
       Serial.print(",\"sniffTotalPackets\":"); Serial.print(l_sniffTotalPackets);
       Serial.print(",\"lastSniffLen\":"); Serial.print(l_lastSniffLen);
-      Serial.print(",\"lastSniffData\":\""); Serial.print(l_lastSniffData); Serial.print("\"}\n");
+      Serial.print(",\"lastSniffData\":\""); Serial.print(l_lastSniffData); Serial.print("\"");
+      
+      // --- ADD SIGNAL ANALYZER DATA ---
+      Serial.print(",\"chActivity\":[");
+      for(int i = 1; i <= 13; i++) {
+          Serial.print(channelActivity[i]);
+          if(i < 13) Serial.print(",");
+          channelActivity[i] = 0; // Reset for the next 1-second window
+      }
+      Serial.print("]");
+      
+      Serial.print("}\n");
     }
 
   // --- STATE MACHINE ---
@@ -491,7 +512,7 @@ void loop() {
 if (now - lastPacketFloodCheck > 1000) {
   lastPacketFloodCheck = now;
   isPacketFlood = (packetsInLastSecond > 50);
-  // 1. UI/State threshold changed to > 20
+  // 1. UI/State threshold changed to >=5
   isJammed = isPacketFlood || (noisyChannels > 20);
   // 2. LED trigger threshold remains > 1
   if (isJammed || (noisyChannels > 1)) {
@@ -523,7 +544,7 @@ if (now - lastPacketFloodCheck > 1000) {
     }
 
     // --- WIFI CHANNEL HOPPING ---
-    if (now - lastChannelHop > 1000) {
+    if (now - lastChannelHop > 200) {
       lastChannelHop = now;
       currentWifiChannel = (currentWifiChannel % 13) + 1;
       esp_wifi_set_channel(currentWifiChannel, WIFI_SECOND_CHAN_NONE);
