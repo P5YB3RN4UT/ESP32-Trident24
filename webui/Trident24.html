@@ -9,6 +9,7 @@
       --bg-color: #050505;
       --term-green: #00ff41;
       --term-dim: #008f11;
+      --term-yellow: #ffff00;
       --panel-border: 1px solid #00ff41;
     }
     body {
@@ -45,7 +46,6 @@
     
     .overview { grid-column: 1 / -1; }
     
-    /* NEW: Flexbox layout to split Overview into left (text) and right (analyzer) */
     .overview-content {
       display: flex;
       flex-direction: row;
@@ -58,7 +58,7 @@
       flex-direction: column;
     }
     .overview-right {
-      width: 220px; /* Small footprint */
+      width: 220px;
       display: flex;
       flex-direction: column;
       border-left: 1px dashed var(--term-dim);
@@ -146,13 +146,13 @@
     @keyframes fadeIn { to { opacity: 1; } }
     .ignored-entry { opacity: 0.4; text-decoration: line-through; }
 
-    /* NEW: Canvas styling for the small spectrum analyzer */
     #spectrumCanvas {
       flex-grow: 1;
       width: 100%;
       background: var(--bg-color);
       border: 1px solid var(--term-dim);
       margin-top: 5px;
+      box-shadow: inset 0 0 10px rgba(0, 255, 65, 0.1);
     }
     .analyzer-header {
       font-size: 10px;
@@ -168,7 +168,6 @@
     <div class="panel-header">[ SYSTEM OVERVIEW ]</div>
     
     <div class="overview-content">
-      <!-- Left Side: Standard Overview Data -->
       <div class="overview-left">
         <button id="connectBtn">CONNECT TO TRIDENT24 (USB)</button>
         <div class="data-row"><span class="label">STATUS:</span> <span class="value" id="connStatus">DISCONNECTED</span></div>
@@ -177,7 +176,6 @@
         <div class="status-bar" id="serialLog">Waiting for connection...</div>
       </div>
 
-      <!-- Right Side: Small Channel Analyzer -->
       <div class="overview-right">
         <div class="analyzer-header">[ 2.4GHZ SPECTRUM ]</div>
         <canvas id="spectrumCanvas"></canvas>
@@ -198,7 +196,7 @@
   <div class="panel jamming">
     <div class="panel-header">[ JAMMING DETECTION ]</div>
     <div class="data-row"><span class="label">NOISY CHANNELS:</span> <span class="value" id="noisyChannels">0/100</span></div>
-    <div class="data-row"><span class="label">INTENSITY:</span> <span class="value" id="jamIntensity">0%</span></div> <!-- NEW LINE -->
+    <div class="data-row"><span class="label">INTENSITY:</span> <span class="value" id="jamIntensity">0%</span></div>
     <div class="data-row"><span class="label">PKT FLOOD:</span> <span class="value" id="isPacketFlood">CLEAR</span></div>
     <div class="data-row"><span class="label">STATUS:</span> <span class="value" id="isJammed">SAFE</span></div>
     <div class="history-container" id="jamHistory"></div>
@@ -223,12 +221,11 @@
     
     let lastDeauthState = false;
     let lastJamState = false;
+    let lastJamPossibleState = false; // NEW: Track JAM POSSIBLE state for history
     let lastLoggedSniffData = '';
-
     let lastDeauthCount = 0;
     let deauthRateWindow = []; 
     
-    // NEW: Persistent levels for the spectrum analyzer (decays over time)
     let channelLevels = new Array(13).fill(0);
 
     connectBtn.addEventListener('click', async () => {
@@ -309,9 +306,6 @@
       return `${y}-${m}-${d} ${h}:${min}:${s}`;
     }
 
-    // ==========================================
-    // SPECTRUM ANALYZER ANIMATION LOOP
-    // ==========================================
     const canvas = document.getElementById('spectrumCanvas');
     const ctx = canvas.getContext('2d');
 
@@ -323,8 +317,6 @@
     resizeCanvas();
 
     function animateSpectrum() {
-      // 1. Fade effect: Draw a semi-transparent background over the previous frame
-      // This creates the smooth "fading over time" trail effect
       ctx.fillStyle = 'rgba(5, 5, 5, 0.25)'; 
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -332,42 +324,57 @@
       const graphHeight = canvas.height - labelHeight;
       const barWidth = canvas.width / 13;
 
+      ctx.strokeStyle = 'rgba(0, 255, 65, 0.1)';
+      ctx.lineWidth = 1;
+      
+      for (let i = 1; i < 4; i++) {
+        const y = (graphHeight / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+      
+      for (let i = 0; i <= 13; i++) {
+        const x = i * barWidth;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, graphHeight);
+        ctx.stroke();
+      }
+
       for (let i = 0; i < 13; i++) {
-        // 2. Decay the level so bars smoothly fall back down
         channelLevels[i] *= 0.92; 
         if (channelLevels[i] < 0.5) channelLevels[i] = 0;
 
         const val = channelLevels[i];
-        // Map value to height (max height is graphHeight)
         const barHeight = Math.min((val / 50) * graphHeight, graphHeight); 
         const x = i * barWidth;
         const y = graphHeight - barHeight;
 
-        // 3. Changing colour based on intensity
-        let color = '#008f11'; // Dim green
-        if (val > 15) color = '#00ff41'; // Bright cyberpunk green
-        if (val > 35) color = '#ff0040'; // Red warning
+        let color = '#008f11';
+        if (val > 15) color = '#00ff41';
+        if (val > 35) color = '#ff0040';
 
         ctx.fillStyle = color;
-        // Draw the bar with a tiny gap for a segmented look
         ctx.fillRect(x + 2, y, barWidth - 4, barHeight);
       }
 
-      // 4. Draw channel labels along the bottom (Solid, so they don't fade out)
       ctx.fillStyle = '#008f11';
       ctx.font = '10px "Courier New", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       for (let i = 0; i < 13; i++) {
-        ctx.fillText((i + 1).toString(), i * barWidth + barWidth / 2, graphHeight + 2);
+        const channelNum = (i + 1).toString().padStart(2, '0');
+        ctx.fillText(channelNum, i * barWidth + barWidth / 2, graphHeight + 2);
       }
 
       requestAnimationFrame(animateSpectrum);
     }
-    // Start the animation loop immediately
     requestAnimationFrame(animateSpectrum);
 
-    function addHistoryEntry(containerId, type, info1, info2) {
+    // UPDATED: Added statusText parameter to display SAFE/JAM POSSIBLE/JAM DETECTED in history
+    function addHistoryEntry(containerId, type, info1, info2, info3 = '', statusText = '') {
       const container = document.getElementById(containerId);
       const timeStr = getTimestamp();
       
@@ -382,13 +389,13 @@
                    <button class="ignore-btn oui-btn" data-mac="${info1}">OUI SRC</button>
                    <button class="ignore-btn oui-btn" data-mac="${info2}">OUI DST</button>`;
       } else if (type === 'JAMMING') {
-        details = `Noisy Ch: ${info1}/100 | Flood: ${info2 ? 'YES' : 'NO'}`;
+        const statusDisplay = statusText ? `Status: <span style="color:${statusText === 'JAM DETECTED' ? '#ff0040' : 'var(--term-yellow)'}">${statusText}</span> | ` : '';
+        details = `${statusDisplay}Noisy Ch: ${info1}/100 | Intensity: ${info3}% | Flood: ${info2 ? 'YES' : 'NO'}`;
       } else if (type === 'SNIFFER') {
         details = `Len: ${info1} bytes | Data: ${info2}`;
       }
       
       entry.innerHTML = `<span class="history-time">[${timeStr}]</span> <span class="history-type warning">${type}</span> ${details}`;
-      
       container.insertBefore(entry, container.firstChild);
       
       while (container.children.length > 1000) {
@@ -428,14 +435,21 @@
       
       document.getElementById('noisyChannels').innerText = data.noisyChannels + '/100';
       
-      // NEW: Update Jamming Intensity
+      // UPDATED: Intensity coloring aligned with new 10x multiplier
       if (data.jamIntensity !== undefined) {
         const intensityEl = document.getElementById('jamIntensity');
         intensityEl.innerText = data.jamIntensity + '%';
-        // Color-code the intensity
-        if (data.jamIntensity > 50) intensityEl.className = 'value warning';
-        else if (data.jamIntensity > 10) intensityEl.style.color = '#ffff00'; // Yellow for moderate
-        else intensityEl.style.color = 'var(--term-green)';
+        
+        if (data.isJammed || data.jamIntensity >= 100) { 
+          intensityEl.className = 'value warning';
+          intensityEl.style.color = '#ff0040'; // Red
+        } else if (data.jamIntensity >= 30) { // 3 to 9 noisy channels (30% to 90%)
+          intensityEl.className = 'value';
+          intensityEl.style.color = 'var(--term-yellow)'; // Yellow
+        } else { // 0 to 2 noisy channels (0% to 20%)
+          intensityEl.className = 'value';
+          intensityEl.style.color = 'var(--term-green)'; // Green
+        }
       }
       
       const floodEl = document.getElementById('isPacketFlood');
@@ -443,12 +457,33 @@
       floodEl.className = data.isPacketFlood ? 'value warning' : 'value';
       
       const jamEl = document.getElementById('isJammed');
-      const currentJamState = data.isJammed;
-      jamEl.innerText = currentJamState ? 'JAM DETECTED' : 'SAFE';
-      jamEl.className = currentJamState ? 'value warning' : 'value';
+      const noisyCh = data.noisyChannels || 0;
+      
+      if (data.isJammed) { 
+        jamEl.innerText = "JAM DETECTED";
+        jamEl.className = "value warning";
+        jamEl.style.color = "#ff0040";
+      } else if (noisyCh >= 3) {
+        jamEl.innerText = "JAM POSSIBLE";
+        jamEl.className = "value";
+        jamEl.style.color = "var(--term-yellow)";
+      } else {
+        jamEl.innerText = "SAFE";
+        jamEl.className = "value";
+        jamEl.style.color = "var(--term-green)";
+      }
 
+      // NEW: Log "JAM POSSIBLE" to history when it transitions into that state
+      const isJamPossible = !data.isJammed && (noisyCh >= 3);
+      if (isJamPossible && !lastJamPossibleState) {
+        addHistoryEntry('jamHistory', 'JAMMING', data.noisyChannels, data.isPacketFlood, data.jamIntensity || 0, 'JAM POSSIBLE');
+      }
+      lastJamPossibleState = isJamPossible;
+
+      // Log "JAM DETECTED" to history
+      const currentJamState = data.isJammed;
       if (currentJamState && !lastJamState) {
-        addHistoryEntry('jamHistory', 'JAMMING', data.noisyChannels, data.isPacketFlood);
+        addHistoryEntry('jamHistory', 'JAMMING', data.noisyChannels, data.isPacketFlood, data.jamIntensity || 0, 'JAM DETECTED');
       }
       lastJamState = currentJamState;
       
@@ -461,16 +496,13 @@
         lastLoggedSniffData = data.lastSniffData;
       }
 
-      // NEW: Feed the 1-second snapshot into the persistent analyzer levels
       if (data.chActivity) {
         for(let i = 0; i < 13; i++) {
-          // Multiply by 10 to give the bars more visual height for small packet counts
           channelLevels[i] += data.chActivity[i] * 10; 
         }
       }
     }
 
-    // --- HANDLE HISTORY BUTTON CLICKS ---
     document.getElementById('deauthHistory').addEventListener('click', async (e) => {
       if (e.target.classList.contains('oui-btn')) {
         let mac = e.target.getAttribute('data-mac').trim().replace(/[^0-9A-Fa-f:]/g, '');

@@ -94,44 +94,23 @@ void drawTridentLogo() {
   const int cx = 64;
   const int cy = 47;
 
-  // --- TOP HALF: THREE-PRONGED TRIDENT (REBUILT FOR PERFECT SYMMETRY & CURVES) ---
-  
-  // 1. Center prong (Sharp, perfectly centered triangle)
-  // Tip at x=64, base width 12px at y=26
   display.fillTriangle(64, 2, 58, 26, 70, 26, SSD1306_WHITE);
-  
-  // 2. Left prong (Curved outwards using 3 overlapping triangles for a smooth blade look)
-  // Outer edge curves from tip (40,6) out to (36,18) and back in to (40,26)
   display.fillTriangle(40, 6, 36, 18, 42, 18, SSD1306_WHITE);
   display.fillTriangle(36, 18, 42, 18, 40, 26, SSD1306_WHITE);
-  display.fillTriangle(42, 18, 40, 26, 52, 26, SSD1306_WHITE); // Connects to crossguard
-  
-  // 3. Right prong (Perfect mathematical mirror of the left prong)
-  // Outer edge curves from tip (88,6) out to (92,18) and back in to (88,26)
+  display.fillTriangle(42, 18, 40, 26, 52, 26, SSD1306_WHITE);
   display.fillTriangle(88, 6, 92, 18, 86, 18, SSD1306_WHITE);
   display.fillTriangle(92, 18, 86, 18, 88, 26, SSD1306_WHITE);
-  display.fillTriangle(86, 18, 88, 26, 76, 26, SSD1306_WHITE); // Connects to crossguard
-
-  // 4. Crossguard (Connects the three prongs seamlessly at their base)
-  // Spans from x=52 to x=76, perfectly bridging the inner bases of the side prongs
+  display.fillTriangle(86, 18, 88, 26, 76, 26, SSD1306_WHITE);
   display.fillRect(52, 26, 24, 4, SSD1306_WHITE);
-  
-  // 5. Center shaft (Connects the crossguard down to the handle)
-  // Starts just below the crossguard (y=30) and ends exactly at the handle bar (y=45)
   display.fillRect(61, 30, 6, 15, SSD1306_WHITE);
 
-  // --- BOTTOM HALF: HANDLE / BASE (Unchanged, connects perfectly to the new shaft) ---
   display.drawCircle(cx, cy, 15, SSD1306_WHITE);
   display.drawCircle(cx, cy, 14, SSD1306_WHITE);
   display.fillCircle(cx, cy, 11, SSD1306_BLACK);
-  
-  // Horizontal bar 
   display.fillRect(31, 45, 66, 5, SSD1306_WHITE);
-  
   display.fillCircle(cx, cy, 9, SSD1306_BLACK);
   display.fillCircle(61, 44, 3, SSD1306_WHITE);
   display.fillCircle(67, 44, 3, SSD1306_WHITE);
-  
   display.drawCircle(64, 54, 5, SSD1306_WHITE);
   display.drawCircle(64, 54, 3, SSD1306_WHITE);
   display.fillCircle(64, 54, 1, SSD1306_WHITE);
@@ -196,7 +175,7 @@ bool isMacIgnored(const uint8_t* mac) {
 
 bool parseMacString(String macStr, uint8_t* mac) {
   macStr.trim();
-  if (macStr.length() != 17) return false; // Ensure format XX:XX:XX:XX:XX:XX
+  if (macStr.length() != 17) return false;
   for (int i = 0; i < 6; i++) {
     String byteStr = macStr.substring(i * 3, i * 3 + 2);
     mac[i] = strtoul(byteStr.c_str(), NULL, 16);
@@ -205,17 +184,12 @@ bool parseMacString(String macStr, uint8_t* mac) {
 }
 
 void wifi_promiscuous_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
-  // FIX: Accept WIFI_PKT_MISC as well as WIFI_PKT_MGMT. 
-  // Raw injected frames (like those from Evil-M5Project) are often classified as MISC 
-  // by the ESP32 hardware, causing them to be silently dropped by a strict MGMT check.
   if (type != WIFI_PKT_MGMT && type != WIFI_PKT_MISC) return;
   
-  // Only increment mgmtCount for actual MGMT frames to keep stats accurate
   if (type == WIFI_PKT_MGMT) {
     mgmtCount++;
   }
 
-    // Track per-channel activity for the Web UI signal analyzer
   if (currentWifiChannel >= 1 && currentWifiChannel <= 13) {
     channelActivity[currentWifiChannel]++;
   }
@@ -224,13 +198,7 @@ void wifi_promiscuous_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
   const wifi_ieee80211_packet_t* ipkt = (wifi_ieee80211_packet_t*)pkt->payload;
   const wifi_ieee80211_mac_hdr_t* hdr = &ipkt->hdr;
   
-  // 0x00C0 = Deauthentication (Type 0, Subtype 12)
-  // 0x00A0 = Disassociation (Type 0, Subtype 10)
-  // 0x00FC mask isolates Type and Subtype bits, ignoring To DS / From DS flags
   if ((hdr->frame_ctrl & 0x00FC) == 0x00C0 || (hdr->frame_ctrl & 0x00FC) == 0x00A0) {
-    
-    // --- SUPPRESSION CHECK ---
-    // If either the Source or Destination is in our ignore list, drop it silently
     if (isMacIgnored(hdr->addr1) || isMacIgnored(hdr->addr2)) {
       return; 
     }
@@ -352,7 +320,6 @@ void setup() {
   radioSniff.openReadingPipe(1, (uint8_t)0x00);
   radioSniff.startListening();
 
-  // WiFi setup for promiscuous mode (does not connect to any network)
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   wifi_promiscuous_filter_t filt = { .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT };
@@ -366,55 +333,51 @@ void setup() {
 // ==========================================
 void loop() {
   unsigned long now = millis();
-    // --- SERIAL TELEMETRY (Web UI Mode Only) ---
-    if (webUIMode && now - lastSerialUpdate > 1000) {
-      lastSerialUpdate = now;
-      
-      // Local copies to prevent concurrent modification issues during string building
-      int l_deauthCount = deauthCount;
-      int l_mgmtCount = mgmtCount;
-      String l_lastDeauthSrc = lastDeauthSrc;
-      String l_lastDeauthDst = lastDeauthDst;
-      int l_noisyChannels = noisyChannels;
-      bool l_isJammed = isJammed;
-      bool l_isPacketFlood = isPacketFlood;
-      int l_sniffTotalPackets = sniffTotalPackets;
-      int l_lastSniffLen = lastSniffLen;
-      String l_lastSniffData = lastSniffData;
-      int l_currentWifiChannel = currentWifiChannel;
+  
+  if (webUIMode && now - lastSerialUpdate > 1000) {
+    lastSerialUpdate = now;
+    
+    int l_deauthCount = deauthCount;
+    int l_mgmtCount = mgmtCount;
+    String l_lastDeauthSrc = lastDeauthSrc;
+    String l_lastDeauthDst = lastDeauthDst;
+    int l_noisyChannels = noisyChannels;
+    bool l_isJammed = isJammed;
+    bool l_isPacketFlood = isPacketFlood;
+    int l_sniffTotalPackets = sniffTotalPackets;
+    int l_lastSniffLen = lastSniffLen;
+    String l_lastSniffData = lastSniffData;
+    int l_currentWifiChannel = currentWifiChannel;
 
-      Serial.print("{\"uptime\":"); Serial.print(now);
-      Serial.print(",\"wifiCh\":"); Serial.print(l_currentWifiChannel);
-      Serial.print(",\"deauthCount\":"); Serial.print(l_deauthCount);
-      
-      // NEW: Send true if deauthCount is greater than 0
-      Serial.print(",\"isDeauthDetected\":"); Serial.print((l_deauthCount > 0) ? "true" : "false"); 
-      
-      Serial.print(",\"mgmtCount\":"); Serial.print(l_mgmtCount);
-      Serial.print(",\"lastDeauthSrc\":\""); Serial.print(l_lastDeauthSrc); Serial.print("\"");
-      Serial.print(",\"lastDeauthDst\":\""); Serial.print(l_lastDeauthDst); Serial.print("\"");
-      Serial.print(",\"noisyChannels\":"); Serial.print(l_noisyChannels);
-      // NEW: Add jamming intensity percentage (0-100%)
-      Serial.print(",\"jamIntensity\":"); Serial.print(min(100, (l_noisyChannels * 5))); 
-      Serial.print(",\"isJammed\":"); Serial.print(l_isJammed ? "true" : "false");
-      Serial.print(",\"isPacketFlood\":"); Serial.print(l_isPacketFlood ? "true" : "false");
-      Serial.print(",\"sniffTotalPackets\":"); Serial.print(l_sniffTotalPackets);
-      Serial.print(",\"lastSniffLen\":"); Serial.print(l_lastSniffLen);
-      Serial.print(",\"lastSniffData\":\""); Serial.print(l_lastSniffData); Serial.print("\"");
-      
-      // --- ADD SIGNAL ANALYZER DATA ---
-      Serial.print(",\"chActivity\":[");
-      for(int i = 1; i <= 13; i++) {
-          Serial.print(channelActivity[i]);
-          if(i < 13) Serial.print(",");
-          channelActivity[i] = 0; // Reset for the next 1-second window
-      }
-      Serial.print("]");
-      
-      Serial.print("}\n");
+    Serial.print("{\"uptime\":"); Serial.print(now);
+    Serial.print(",\"wifiCh\":"); Serial.print(l_currentWifiChannel);
+    Serial.print(",\"deauthCount\":"); Serial.print(l_deauthCount);
+    Serial.print(",\"isDeauthDetected\":"); Serial.print((l_deauthCount > 0) ? "true" : "false"); 
+    Serial.print(",\"mgmtCount\":"); Serial.print(l_mgmtCount);
+    Serial.print(",\"lastDeauthSrc\":\""); Serial.print(l_lastDeauthSrc); Serial.print("\"");
+    Serial.print(",\"lastDeauthDst\":\""); Serial.print(l_lastDeauthDst); Serial.print("\"");
+    Serial.print(",\"noisyChannels\":"); Serial.print(l_noisyChannels);
+    
+    // FIX: If JAM DETECTED is triggered (by packet flood or >=10 noisy channels), 
+    // force intensity to 100% so the history log doesn't show 0%.
+    int l_jamIntensity = l_isJammed ? 100 : min(100, (l_noisyChannels * 10));
+    Serial.print(",\"jamIntensity\":"); Serial.print(l_jamIntensity); 
+    
+    Serial.print(",\"isJammed\":"); Serial.print(l_isJammed ? "true" : "false");
+    Serial.print(",\"isPacketFlood\":"); Serial.print(l_isPacketFlood ? "true" : "false");
+    Serial.print(",\"sniffTotalPackets\":"); Serial.print(l_sniffTotalPackets);
+    Serial.print(",\"lastSniffLen\":"); Serial.print(l_lastSniffLen);
+    Serial.print(",\"lastSniffData\":\""); Serial.print(l_lastSniffData); Serial.print("\"");
+    
+    Serial.print(",\"chActivity\":[");
+    for(int i = 1; i <= 13; i++) {
+        Serial.print(channelActivity[i]);
+        if(i < 13) Serial.print(",");
+        channelActivity[i] = 0; // Reset for the next 1-second window
     }
+    Serial.print("]}\n");
+  }
 
-  // --- STATE MACHINE ---
   if (startupState == STARTUP_LOGO) {
     if (now - logoStartTime >= 3000) {
       startupState = STARTUP_MENU;
@@ -432,16 +395,14 @@ void loop() {
     if (reading == HIGH && lastButtonStateMenu == LOW && buttonPressed) {
       unsigned long duration = now - buttonPressTime;
       if (duration < 800) { 
-        // Quick press: Scroll options
         selectedOption = (selectedOption == 1) ? 2 : 1;
         drawStartupMenu(selectedOption);
       } else { 
-        // Long press: Select option
         webUIMode = (selectedOption == 1);
         startupState = RUNNING;
         
         if (webUIMode) {
-          drawTridentLogo(); // Static logo as requested
+          drawTridentLogo();
           Serial.println("{\"status\":\"Web UI Mode Active\"}");
         } else {
           currentScreen = MAIN;
@@ -453,8 +414,6 @@ void loop() {
     lastButtonStateMenu = reading;
   } 
   else if (startupState == RUNNING) {
-
-        // --- LISTEN FOR WEBUI COMMANDS ---
     while (Serial.available()) {
       char c = Serial.read();
       if (c == '\n' || c == '\r') {
@@ -476,7 +435,6 @@ void loop() {
       }
     }
 
-    // --- BUTTON HANDLING (Standalone Mode Only) ---
     if (!webUIMode) {
       int reading = digitalRead(MODE_BUTTON);
       if (reading != lastButtonState) {
@@ -492,7 +450,6 @@ void loop() {
       lastButtonState = reading;
     }
 
-    // --- PASSIVE RF CHANNEL SCANNING ---
     if (now - lastScanTime > 10) {
       lastScanTime = now;
       radioJam.setChannel(scanChannel);
@@ -508,22 +465,20 @@ void loop() {
       }
     }
 
-// --- PACKET FLOOD CHECK ---
-if (now - lastPacketFloodCheck > 1000) {
-  lastPacketFloodCheck = now;
-  isPacketFlood = (packetsInLastSecond > 50);
-  // 1. UI/State threshold changed to >=5
-  isJammed = isPacketFlood || (noisyChannels > 20);
-  // 2. LED trigger threshold remains > 1
-  if (isJammed || (noisyChannels > 1)) {
-    lastEventTime = now;
-  }
-  
-  // Reset the counter for the next 1-second window
-  packetsInLastSecond = 0; 
-}
+    // --- PACKET FLOOD CHECK ---
+    if (now - lastPacketFloodCheck > 1000) {
+      lastPacketFloodCheck = now;
+      isPacketFlood = (packetsInLastSecond > 50);
+      
+      // JAM DETECTED at >= 10 noisy channels (which now equals 100% intensity)
+      isJammed = isPacketFlood || (noisyChannels >= 10);
+      
+      if (isJammed || (noisyChannels > 0)) {
+        lastEventTime = now;
+      }
+      packetsInLastSecond = 0; 
+    }
 
-    // --- NRF24 PACKET RECEPTION ---
     if (radioSniff.available()) {
       uint8_t len = radioSniff.getDynamicPayloadSize();
       if (len > 32) len = 32;
@@ -532,31 +487,27 @@ if (now - lastPacketFloodCheck > 1000) {
       sniffTotalPackets++;
       packetsInLastSecond++;
       lastSniffLen = len;
-      // lastEventTime = now; // <-- Disabled so sniffer packets don't trigger the LED
       
       String hexStr = "";
-      for (int i = 0; i < len; i++) {       // <--- LOOP THROUGH FULL LENGTH
+      for (int i = 0; i < len; i++) {
         if (payload[i] < 0x10) hexStr += "0";
         hexStr += String(payload[i], HEX);
         hexStr += " ";
       }
-      lastSniffData = hexStr;               // <--- NO TRUNCATION
+      lastSniffData = hexStr;
     }
 
-    // --- WIFI CHANNEL HOPPING ---
     if (now - lastChannelHop > 200) {
       lastChannelHop = now;
       currentWifiChannel = (currentWifiChannel % 13) + 1;
       esp_wifi_set_channel(currentWifiChannel, WIFI_SECOND_CHAN_NONE);
     }
 
-    // --- DISPLAY UPDATE (Standalone Only) ---
     if (!webUIMode && now - lastDisplayUpdate > 250) {
       lastDisplayUpdate = now;
       updateDisplay();
     }
 
-    // --- STATUS LED ---
     if (now - lastEventTime < 1500) {
       digitalWrite(STATUS_LED, HIGH);
     } else {
