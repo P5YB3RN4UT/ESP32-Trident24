@@ -58,11 +58,19 @@
       flex-direction: column;
     }
     .overview-right {
-      width: 220px;
+      flex: 1.2;
+      min-width: 400px;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
+      gap: 15px;
       border-left: 1px dashed var(--term-dim);
       padding-left: 15px;
+    }
+    .graph-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
     }
     
     .deauth { grid-column: 1 / 2; }
@@ -154,6 +162,28 @@
       margin-top: 5px;
       box-shadow: inset 0 0 10px rgba(0, 255, 65, 0.1);
     }
+    
+    .wf-wrapper {
+      flex-grow: 1;
+      width: 100%;
+      position: relative;
+      background: var(--bg-color);
+      border: 1px solid var(--term-dim);
+      margin-top: 5px;
+      box-shadow: inset 0 0 10px rgba(0, 255, 65, 0.1);
+    }
+    #waterfallCanvas, #waterfallGridCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #waterfallGridCanvas {
+      pointer-events: none;
+    }
+
     .analyzer-header {
       font-size: 10px;
       color: var(--term-dim);
@@ -177,8 +207,17 @@
       </div>
 
       <div class="overview-right">
-        <div class="analyzer-header">[ 2.4GHZ SPECTRUM ]</div>
-        <canvas id="spectrumCanvas"></canvas>
+        <div class="graph-container">
+          <div class="analyzer-header">[ 2.4GHZ WATERFALL ]</div>
+          <div class="wf-wrapper">
+            <canvas id="waterfallCanvas"></canvas>
+            <canvas id="waterfallGridCanvas"></canvas>
+          </div>
+        </div>
+        <div class="graph-container">
+          <div class="analyzer-header">[ 2.4GHZ SPECTRUM ]</div>
+          <canvas id="spectrumCanvas"></canvas>
+        </div>
       </div>
     </div>
   </div>
@@ -221,12 +260,17 @@
     
     let lastDeauthState = false;
     let lastJamState = false;
-    let lastJamPossibleState = false; // NEW: Track JAM POSSIBLE state for history
+    let lastJamPossibleState = false;
     let lastLoggedSniffData = '';
     let lastDeauthCount = 0;
     let deauthRateWindow = []; 
     
     let channelLevels = new Array(13).fill(0);
+    let waterfallLevels = new Array(13).fill(0);
+    let newWaterfallLineReady = false;
+
+    // >>> CHANGE THIS HEX CODE TO SET THE COLOR OF THE "NO SIGNAL" BASELINE IN NEW LINES <<<
+    let noSignalColor = '#002200'; 
 
     connectBtn.addEventListener('click', async () => {
       if (!("serial" in navigator)) {
@@ -308,27 +352,97 @@
 
     const canvas = document.getElementById('spectrumCanvas');
     const ctx = canvas.getContext('2d');
+    
+    const wfCanvas = document.getElementById('waterfallCanvas');
+    const wfCtx = wfCanvas.getContext('2d');
+    const wfGridCanvas = document.getElementById('waterfallGridCanvas');
+    const wfGridCtx = wfGridCanvas.getContext('2d');
 
     function resizeCanvas() {
       canvas.width = canvas.clientWidth;
       canvas.height = canvas.clientHeight;
     }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+    
+    function drawWaterfallGrid() {
+      const labelHeight = 14;
+      const wfGraphHeight = Math.max(10, wfGridCanvas.height - labelHeight);
+      const colWidth = wfGridCanvas.width / 13;
+      
+      wfGridCtx.clearRect(0, 0, wfGridCanvas.width, wfGridCanvas.height);
+      
+      wfGridCtx.strokeStyle = 'rgba(0, 255, 65, 0.1)'; 
+      wfGridCtx.lineWidth = 1;
+      
+      for (let i = 0; i <= 13; i++) {
+          const x = Math.round(i * colWidth) + 0.5; 
+          wfGridCtx.beginPath();
+          wfGridCtx.moveTo(x, 0);
+          wfGridCtx.lineTo(x, wfGraphHeight);
+          wfGridCtx.stroke();
+      }
+      for (let i = 1; i < 4; i++) {
+          const y = Math.round((wfGraphHeight / 4) * i) + 0.5;
+          wfGridCtx.beginPath();
+          wfGridCtx.moveTo(0, y);
+          wfGridCtx.lineTo(wfGridCanvas.width, y);
+          wfGridCtx.stroke();
+      }
+      
+      wfGridCtx.fillStyle = '#050505';
+      wfGridCtx.fillRect(0, wfGraphHeight, wfGridCanvas.width, labelHeight);
+      
+      wfGridCtx.fillStyle = '#008f11';
+      wfGridCtx.font = '10px "Courier New", monospace';
+      wfGridCtx.textAlign = 'center';
+      wfGridCtx.textBaseline = 'top';
+      for (let i = 0; i < 13; i++) {
+        const channelNum = (i + 1).toString().padStart(2, '0');
+        wfGridCtx.fillText(channelNum, i * colWidth + colWidth / 2, wfGraphHeight + 2);
+      }
+    }
 
-    function animateSpectrum() {
-      ctx.fillStyle = 'rgba(5, 5, 5, 0.25)'; 
+    function resizeWaterfall() {
+      const wrapper = wfCanvas.parentElement;
+      const w = wrapper.clientWidth;
+      const h = wrapper.clientHeight;
+      
+      wfCanvas.width = w;
+      wfCanvas.height = h;
+      wfGridCanvas.width = w;
+      wfGridCanvas.height = h;
+      
+      wfCtx.fillStyle = '#050505';
+      wfCtx.fillRect(0, 0, w, h);
+      
+      drawWaterfallGrid();
+    }
+
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      resizeWaterfall();
+    });
+    
+    resizeCanvas();
+    resizeWaterfall();
+
+    function animate() {
+      const labelHeight = 14;
+      
+      // ==========================================
+      // 1. SPECTRUM GRAPH DRAWING
+      // ==========================================
+      ctx.fillStyle = '#050505';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const labelHeight = 14;
       const graphHeight = canvas.height - labelHeight;
       const barWidth = canvas.width / 13;
 
       ctx.strokeStyle = 'rgba(0, 255, 65, 0.1)';
       ctx.lineWidth = 1;
       
+      // UPDATED: Using Math.round() + 0.5 for pixel-perfect crisp lines
       for (let i = 1; i < 4; i++) {
-        const y = (graphHeight / 4) * i;
+        const y = Math.round((graphHeight / 4) * i) + 0.5;
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(canvas.width, y);
@@ -336,7 +450,7 @@
       }
       
       for (let i = 0; i <= 13; i++) {
-        const x = i * barWidth;
+        const x = Math.round(i * barWidth) + 0.5;
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, graphHeight);
@@ -348,16 +462,16 @@
         if (channelLevels[i] < 0.5) channelLevels[i] = 0;
 
         const val = channelLevels[i];
-        const barHeight = Math.min((val / 50) * graphHeight, graphHeight); 
+        const bHeight = Math.min((val / 50) * graphHeight, graphHeight); 
         const x = i * barWidth;
-        const y = graphHeight - barHeight;
+        const y = graphHeight - bHeight;
 
         let color = '#008f11';
         if (val > 15) color = '#00ff41';
         if (val > 35) color = '#ff0040';
 
         ctx.fillStyle = color;
-        ctx.fillRect(x + 2, y, barWidth - 4, barHeight);
+        ctx.fillRect(x + 2, y, barWidth - 4, bHeight);
       }
 
       ctx.fillStyle = '#008f11';
@@ -369,11 +483,35 @@
         ctx.fillText(channelNum, i * barWidth + barWidth / 2, graphHeight + 2);
       }
 
-      requestAnimationFrame(animateSpectrum);
-    }
-    requestAnimationFrame(animateSpectrum);
+      // ==========================================
+      // 2. WATERFALL GRAPH DRAWING (DATA ONLY)
+      // ==========================================
+      const wfGraphHeight = Math.max(10, wfCanvas.height - labelHeight);
+      const colWidth = wfCanvas.width / 13;
+      
+      if (newWaterfallLineReady && wfGraphHeight > 1) {
+        wfCtx.drawImage(wfCanvas, 0, 1, wfCanvas.width, wfGraphHeight - 1, 0, 0, wfCanvas.width, wfGraphHeight - 1);
+        
+        wfCtx.fillStyle = noSignalColor; 
+        wfCtx.fillRect(0, wfGraphHeight - 1, wfCanvas.width, 1);
+        
+        for (let i = 0; i < 13; i++) {
+          const val = waterfallLevels[i];
+          if (val > 15) {
+            let color = '#00ff41';
+            if (val > 35) color = '#ff0040';
+            wfCtx.fillStyle = color;
+            wfCtx.fillRect(i * colWidth, wfGraphHeight - 1, colWidth, 1);
+          }
+        }
+        newWaterfallLineReady = false;
+      }
 
-    // UPDATED: Added statusText parameter to display SAFE/JAM POSSIBLE/JAM DETECTED in history
+      requestAnimationFrame(animate);
+    }
+    
+    requestAnimationFrame(animate);
+
     function addHistoryEntry(containerId, type, info1, info2, info3 = '', statusText = '') {
       const container = document.getElementById(containerId);
       const timeStr = getTimestamp();
@@ -435,20 +573,19 @@
       
       document.getElementById('noisyChannels').innerText = data.noisyChannels + '/100';
       
-      // UPDATED: Intensity coloring aligned with new 10x multiplier
       if (data.jamIntensity !== undefined) {
         const intensityEl = document.getElementById('jamIntensity');
         intensityEl.innerText = data.jamIntensity + '%';
         
         if (data.isJammed || data.jamIntensity >= 100) { 
           intensityEl.className = 'value warning';
-          intensityEl.style.color = '#ff0040'; // Red
-        } else if (data.jamIntensity >= 30) { // 3 to 9 noisy channels (30% to 90%)
+          intensityEl.style.color = '#ff0040';
+        } else if (data.jamIntensity >= 30) {
           intensityEl.className = 'value';
-          intensityEl.style.color = 'var(--term-yellow)'; // Yellow
-        } else { // 0 to 2 noisy channels (0% to 20%)
+          intensityEl.style.color = 'var(--term-yellow)';
+        } else {
           intensityEl.className = 'value';
-          intensityEl.style.color = 'var(--term-green)'; // Green
+          intensityEl.style.color = 'var(--term-green)';
         }
       }
       
@@ -473,14 +610,12 @@
         jamEl.style.color = "var(--term-green)";
       }
 
-      // NEW: Log "JAM POSSIBLE" to history when it transitions into that state
       const isJamPossible = !data.isJammed && (noisyCh >= 3);
       if (isJamPossible && !lastJamPossibleState) {
         addHistoryEntry('jamHistory', 'JAMMING', data.noisyChannels, data.isPacketFlood, data.jamIntensity || 0, 'JAM POSSIBLE');
       }
       lastJamPossibleState = isJamPossible;
 
-      // Log "JAM DETECTED" to history
       const currentJamState = data.isJammed;
       if (currentJamState && !lastJamState) {
         addHistoryEntry('jamHistory', 'JAMMING', data.noisyChannels, data.isPacketFlood, data.jamIntensity || 0, 'JAM DETECTED');
@@ -500,6 +635,11 @@
         for(let i = 0; i < 13; i++) {
           channelLevels[i] += data.chActivity[i] * 10; 
         }
+        
+        for(let i = 0; i < 13; i++) {
+          waterfallLevels[i] = data.chActivity[i] * 10;
+        }
+        newWaterfallLineReady = true;
       }
     }
 
