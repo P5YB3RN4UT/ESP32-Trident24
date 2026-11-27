@@ -58,11 +58,11 @@
       flex-direction: column;
     }
     .overview-right {
-      flex: 1.2;
-      min-width: 400px;
+      flex: 0.6; /* Halved from 1.2 */
+      min-width: 200px; /* Halved from 400px */
       display: flex;
       flex-direction: row;
-      gap: 15px;
+      gap: 8px; /* Reduced from 15px */
       border-left: 1px dashed var(--term-dim);
       padding-left: 15px;
     }
@@ -440,7 +440,6 @@
       ctx.strokeStyle = 'rgba(0, 255, 65, 0.1)';
       ctx.lineWidth = 1;
       
-      // UPDATED: Using Math.round() + 0.5 for pixel-perfect crisp lines
       for (let i = 1; i < 4; i++) {
         const y = Math.round((graphHeight / 4) * i) + 0.5;
         ctx.beginPath();
