@@ -43,9 +43,16 @@ String lastDeauthDst = "None";
 int noisyChannels = 0;
 bool isJammed = false;
 bool isPacketFlood = false;
+
 int sniffTotalPackets = 0;
 String lastSniffData = "Waiting...";
 int lastSniffLen = 0;
+
+// --- NEW SNIFFING PARSE VARIABLES ---
+String lastFrameType = "Unknown";
+String lastSniffSrcMac = "Unknown";
+String lastSniffDstMac = "Unknown";
+String lastSniffBssid = "Unknown";
 
 unsigned long lastEventTime = 0;
 unsigned long lastDisplayUpdate = 0;
@@ -57,29 +64,24 @@ int currentWindowNoisy = 0;
 unsigned long lastPacketFloodCheck = 0;
 int packetsInLastSecond = 0;
 
-// Original button variables
 int lastButtonState = HIGH;
 unsigned long lastDebounceTime = 0;
 unsigned long debounceDelay = 50;
 
-// Startup Menu Variables
 enum StartupState { STARTUP_LOGO, STARTUP_MENU, RUNNING };
 StartupState startupState = STARTUP_LOGO;
 unsigned long logoStartTime = 0;
-int selectedOption = 1; // 1 = Web UI, 2 = Standalone
+int selectedOption = 1;
 bool webUIMode = false;
 
-// Menu button variables
 int lastButtonStateMenu = HIGH;
 unsigned long buttonPressTime = 0;
 bool buttonPressed = false;
 
 unsigned long lastSerialUpdate = 0;
 
-// --- SIGNAL ANALYZER ---
-volatile int channelActivity[14] = {0}; // Index 1 to 13 for WiFi channels
+volatile int channelActivity[14] = {0};
 
-// --- FALSE POSITIVE SUPPRESSION ---
 #define MAX_IGNORED_MACS 10
 uint8_t ignoredMacs[MAX_IGNORED_MACS][6];
 int ignoredMacCount = 0;
@@ -358,22 +360,26 @@ void loop() {
     Serial.print(",\"lastDeauthDst\":\""); Serial.print(l_lastDeauthDst); Serial.print("\"");
     Serial.print(",\"noisyChannels\":"); Serial.print(l_noisyChannels);
     
-    // FIX: If JAM DETECTED is triggered (by packet flood or >=10 noisy channels), 
-    // force intensity to 100% so the history log doesn't show 0%.
     int l_jamIntensity = l_isJammed ? 100 : min(100, (l_noisyChannels * 10));
     Serial.print(",\"jamIntensity\":"); Serial.print(l_jamIntensity); 
     
     Serial.print(",\"isJammed\":"); Serial.print(l_isJammed ? "true" : "false");
     Serial.print(",\"isPacketFlood\":"); Serial.print(l_isPacketFlood ? "true" : "false");
+    
+    // --- UPDATED SNIFFING JSON OUTPUT ---
     Serial.print(",\"sniffTotalPackets\":"); Serial.print(l_sniffTotalPackets);
     Serial.print(",\"lastSniffLen\":"); Serial.print(l_lastSniffLen);
+    Serial.print(",\"lastFrameType\":\""); Serial.print(lastFrameType); Serial.print("\"");
+    Serial.print(",\"lastSniffSrc\":\""); Serial.print(lastSniffSrcMac); Serial.print("\"");
+    Serial.print(",\"lastSniffDst\":\""); Serial.print(lastSniffDstMac); Serial.print("\"");
+    Serial.print(",\"lastSniffBssid\":\""); Serial.print(lastSniffBssid); Serial.print("\"");
     Serial.print(",\"lastSniffData\":\""); Serial.print(l_lastSniffData); Serial.print("\"");
     
     Serial.print(",\"chActivity\":[");
     for(int i = 1; i <= 13; i++) {
         Serial.print(channelActivity[i]);
         if(i < 13) Serial.print(",");
-        channelActivity[i] = 0; // Reset for the next 1-second window
+        channelActivity[i] = 0;
     }
     Serial.print("]}\n");
   }
@@ -465,12 +471,9 @@ void loop() {
       }
     }
 
-    // --- PACKET FLOOD CHECK ---
     if (now - lastPacketFloodCheck > 1000) {
       lastPacketFloodCheck = now;
       isPacketFlood = (packetsInLastSecond > 50);
-      
-      // JAM DETECTED at >= 10 noisy channels (which now equals 100% intensity)
       isJammed = isPacketFlood || (noisyChannels >= 10);
       
       if (isJammed || (noisyChannels > 0)) {
@@ -479,17 +482,53 @@ void loop() {
       packetsInLastSecond = 0; 
     }
 
+    // --- ENHANCED SNIFFING LOGIC ---
     if (radioSniff.available()) {
       uint8_t len = radioSniff.getDynamicPayloadSize();
       if (len > 32) len = 32;
       uint8_t payload[32];
       radioSniff.read(payload, len);
+      
       sniffTotalPackets++;
       packetsInLastSecond++;
       lastSniffLen = len;
       
+      if (len >= 24) {
+        uint8_t frameType = (payload[0] & 0x0C) >> 2;
+        uint8_t frameSubtype = (payload[0] & 0xF0) >> 4;
+        
+        if (frameType == 0) { // Management
+          if (frameSubtype == 0x04) lastFrameType = "Probe Req";
+          else if (frameSubtype == 0x08) lastFrameType = "Beacon";
+          else if (frameSubtype == 0x0C) lastFrameType = "Deauth";
+          else lastFrameType = "Mgmt";
+        } else if (frameType == 1) { // Control
+          lastFrameType = "Control";
+        } else if (frameType == 2) { // Data
+          lastFrameType = "Data";
+        } else {
+          lastFrameType = "Unknown";
+        }
+
+        char macBuf[18];
+        snprintf(macBuf, sizeof(macBuf), "%02X:%02X:%02X:%02X:%02X:%02X", payload[4], payload[5], payload[6], payload[7], payload[8], payload[9]);
+        lastSniffDstMac = String(macBuf);
+        
+        snprintf(macBuf, sizeof(macBuf), "%02X:%02X:%02X:%02X:%02X:%02X", payload[10], payload[11], payload[12], payload[13], payload[14], payload[15]);
+        lastSniffSrcMac = String(macBuf);
+        
+        snprintf(macBuf, sizeof(macBuf), "%02X:%02X:%02X:%02X:%02X:%02X", payload[16], payload[17], payload[18], payload[19], payload[20], payload[21]);
+        lastSniffBssid = String(macBuf);
+      } else {
+        lastFrameType = "Short/ACK";
+        lastSniffSrcMac = "Mac undetected";
+        lastSniffDstMac = "Mac undetected";
+        lastSniffBssid = "Mac undetected";
+      }
+      
       String hexStr = "";
-      for (int i = 0; i < len; i++) {
+      int hexLimit = (len < 16) ? len : 16;
+      for (int i = 0; i < hexLimit; i++) {
         if (payload[i] < 0x10) hexStr += "0";
         hexStr += String(payload[i], HEX);
         hexStr += " ";

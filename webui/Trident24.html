@@ -44,7 +44,12 @@
       letter-spacing: 2px;
     }
     
-    .overview { grid-column: 1 / -1; }
+    /* --- GRID LAYOUT MAPPING --- */
+    .overview { grid-column: 1 / -1; grid-row: 1; }
+    .deauth { grid-column: 1 / 2; grid-row: 2; }
+    .jamming { grid-column: 2 / 3; grid-row: 2; }
+    .sniffing { grid-column: 1 / 2; grid-row: 3; }
+    .sniff-history { grid-column: 2 / 3; grid-row: 3; }
     
     .overview-content {
       display: flex;
@@ -58,11 +63,11 @@
       flex-direction: column;
     }
     .overview-right {
-      flex: 0.6; /* Halved from 1.2 */
-      min-width: 200px; /* Halved from 400px */
+      flex: 0.6;
+      min-width: 200px;
       display: flex;
       flex-direction: row;
-      gap: 8px; /* Reduced from 15px */
+      gap: 8px;
       border-left: 1px dashed var(--term-dim);
       padding-left: 15px;
     }
@@ -72,10 +77,6 @@
       flex-direction: column;
       min-width: 0;
     }
-    
-    .deauth { grid-column: 1 / 2; }
-    .jamming { grid-column: 2 / 3; }
-    .sniffing { grid-column: 1 / -1; }
     
     .data-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
     .label { color: var(--term-dim); }
@@ -87,11 +88,11 @@
       border-top: 1px dashed var(--term-dim);
       padding-top: 5px;
       font-size: 11px;
-      max-height: 240px;
+      max-height: 100%;
       overflow-y: auto;
       flex-grow: 1;
     }
-    .history-entry { margin-bottom: 4px; word-break: break-all; }
+    .history-entry { margin-bottom: 8px; word-break: break-all; line-height: 1.4; }
     .history-time { color: var(--term-dim); }
     .history-type { font-weight: bold; margin: 0 4px; }
     .history-container::-webkit-scrollbar { width: 6px; }
@@ -191,6 +192,10 @@
       letter-spacing: 1px;
       margin-bottom: 4px;
     }
+
+    .sniff-history .history-container {
+      border-top: none;
+    }
   </style>
 </head>
 <body>
@@ -241,11 +246,21 @@
     <div class="history-container" id="jamHistory"></div>
   </div>
   
+  <!-- SPLIT SNIFFING SECTION: LEFT PANEL -->
   <div class="panel sniffing">
     <div class="panel-header">[ WIRELESS DEVICE SNIFFING ]</div>
     <div class="data-row"><span class="label">TOTAL PACKETS:</span> <span class="value" id="sniffTotalPackets">0</span></div>
+    <div class="data-row"><span class="label">FRAME TYPE:</span> <span class="value" id="lastFrameType" style="color: var(--term-yellow);">WAITING...</span></div>
+    <div class="data-row"><span class="label">SOURCE MAC:</span> <span class="value" id="lastSniffSrc">UNKNOWN</span></div>
+    <div class="data-row"><span class="label">DEST MAC:</span> <span class="value" id="lastSniffDst">UNKNOWN</span></div>
+    <div class="data-row"><span class="label">BSSID (AP):</span> <span class="value" id="lastSniffBssid">UNKNOWN</span></div>
     <div class="data-row"><span class="label">LAST LEN:</span> <span class="value" id="lastSniffLen">0 bytes</span></div>
-    <div class="data-row"><span class="label">LAST DATA:</span> <span class="value" id="lastSniffData">WAITING...</span></div>
+    <div class="data-row"><span class="label">LAST DATA:</span> <span class="value" id="lastSniffData" style="font-size: 10px; opacity: 0.7;">WAITING...</span></div>
+  </div>
+
+  <!-- SPLIT SNIFFING SECTION: RIGHT PANEL -->
+  <div class="panel sniff-history">
+    <div class="panel-header">[ DEVICE SNIFFING HISTORY ]</div>
     <div class="history-container" id="sniffHistory"></div>
   </div>
 
@@ -269,7 +284,6 @@
     let waterfallLevels = new Array(13).fill(0);
     let newWaterfallLineReady = false;
 
-    // >>> CHANGE THIS HEX CODE TO SET THE COLOR OF THE "NO SIGNAL" BASELINE IN NEW LINES <<<
     let noSignalColor = '#002200'; 
 
     connectBtn.addEventListener('click', async () => {
@@ -428,9 +442,6 @@
     function animate() {
       const labelHeight = 14;
       
-      // ==========================================
-      // 1. SPECTRUM GRAPH DRAWING
-      // ==========================================
       ctx.fillStyle = '#050505';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -482,9 +493,6 @@
         ctx.fillText(channelNum, i * barWidth + barWidth / 2, graphHeight + 2);
       }
 
-      // ==========================================
-      // 2. WATERFALL GRAPH DRAWING (DATA ONLY)
-      // ==========================================
       const wfGraphHeight = Math.max(10, wfCanvas.height - labelHeight);
       const colWidth = wfCanvas.width / 13;
       
@@ -511,7 +519,8 @@
     
     requestAnimationFrame(animate);
 
-    function addHistoryEntry(containerId, type, info1, info2, info3 = '', statusText = '') {
+    // Updated to accept a 5th parameter (info4) for the hex data
+    function addHistoryEntry(containerId, type, info1, info2, info3 = '', statusText = '', info4 = '') {
       const container = document.getElementById(containerId);
       const timeStr = getTimestamp();
       
@@ -529,7 +538,14 @@
         const statusDisplay = statusText ? `Status: <span style="color:${statusText === 'JAM DETECTED' ? '#ff0040' : 'var(--term-yellow)'}">${statusText}</span> | ` : '';
         details = `${statusDisplay}Noisy Ch: ${info1}/100 | Intensity: ${info3}% | Flood: ${info2 ? 'YES' : 'NO'}`;
       } else if (type === 'SNIFFER') {
-        details = `Len: ${info1} bytes | Data: ${info2}`;
+        // info1=src, info2=dst, info3=len, statusText=frameType, info4=hexData
+        let srcBtn = info1 !== 'Mac undetected' ? `<button class="ignore-btn oui-btn" data-mac="${info1}">OUI</button>` : '';
+        let dstBtn = info2 !== 'Mac undetected' ? `<button class="ignore-btn oui-btn" data-mac="${info2}">OUI</button>` : '';
+        
+        // Line 1: MACs and OUI buttons
+        // Line 2: Indented Len and Data
+        details = `Type: ${statusText} | SRC: ${info1} ${srcBtn} | DST: ${info2} ${dstBtn}<br>
+                   <span style="margin-left: 20px; color: var(--term-dim); font-size: 10px;">Len: ${info3} bytes | Data: ${info4}</span>`;
       }
       
       entry.innerHTML = `<span class="history-time">[${timeStr}]</span> <span class="history-type warning">${type}</span> ${details}`;
@@ -621,15 +637,28 @@
       }
       lastJamState = currentJamState;
       
+      // --- SNIFFING UI MAPPING ---
       document.getElementById('sniffTotalPackets').innerText = data.sniffTotalPackets;
-      document.getElementById('lastSniffLen').innerText = data.lastSniffLen + ' bytes';
-      document.getElementById('lastSniffData').innerText = data.lastSniffData;
+      document.getElementById('lastFrameType').innerText = data.lastFrameType || 'UNKNOWN';
+      document.getElementById('lastSniffSrc').innerText = data.lastSniffSrc || 'UNKNOWN';
+      document.getElementById('lastSniffDst').innerText = data.lastSniffDst || 'UNKNOWN';
+      document.getElementById('lastSniffBssid').innerText = data.lastSniffBssid || 'UNKNOWN';
+      document.getElementById('lastSniffLen').innerText = (data.lastSniffLen || 0) + ' bytes';
+      document.getElementById('lastSniffData').innerText = data.lastSniffData || 'WAITING...';
 
-      if (data.lastSniffData !== 'WAITING...' && data.lastSniffData !== lastLoggedSniffData) {
-        addHistoryEntry('sniffHistory', 'SNIFFER', data.lastSniffLen, data.lastSniffData);
+      if (data.lastSniffData && data.lastSniffData !== 'Waiting...' && data.lastSniffData !== lastLoggedSniffData) {
+        let srcMac = data.lastSniffSrc || 'Mac undetected';
+        let dstMac = data.lastSniffDst || 'Mac undetected';
+        let len = data.lastSniffLen || 0;
+        let hexData = data.lastSniffData || '';
+        let frameType = data.lastFrameType || 'Unknown';
+        
+        // Updated call to pass len and hexData as separate arguments
+        addHistoryEntry('sniffHistory', 'SNIFFER', srcMac, dstMac, len, frameType, hexData);
         lastLoggedSniffData = data.lastSniffData;
       }
 
+      // --- GRAPH DATA UPDATING ---
       if (data.chActivity) {
         for(let i = 0; i < 13; i++) {
           channelLevels[i] += data.chActivity[i] * 10; 
@@ -642,9 +671,12 @@
       }
     }
 
-    document.getElementById('deauthHistory').addEventListener('click', async (e) => {
+    // --- GENERALIZED CLICK LISTENER FOR OUI & IGNORE ---
+    document.addEventListener('click', async (e) => {
       if (e.target.classList.contains('oui-btn')) {
         let mac = e.target.getAttribute('data-mac').trim().replace(/[^0-9A-Fa-f:]/g, '');
+        if (!mac || mac.length < 8) return; 
+        
         e.target.innerText = "Loading...";
         e.target.disabled = true;
         try {
@@ -676,15 +708,17 @@
       }
 
       if (e.target.classList.contains('ignore-btn') && !e.target.classList.contains('oui-btn')) {
-        const mac = e.target.getAttribute('data-mac');
-        if (writer) {
-          await writer.write(`IGNORE:${mac}\n`);
-          const entry = e.target.closest('.history-entry');
-          entry.classList.add('ignored-entry');
-          e.target.disabled = true;
-          e.target.innerText = "Ignored";
-          e.target.style.cursor = "default";
-          e.target.style.color = "var(--term-dim)";
+        if (e.target.closest('#deauthHistory')) {
+          const mac = e.target.getAttribute('data-mac');
+          if (writer) {
+            await writer.write(`IGNORE:${mac}\n`);
+            const entry = e.target.closest('.history-entry');
+            entry.classList.add('ignored-entry');
+            e.target.disabled = true;
+            e.target.innerText = "Ignored";
+            e.target.style.cursor = "default";
+            e.target.style.color = "var(--term-dim)";
+          }
         }
       }
     });
