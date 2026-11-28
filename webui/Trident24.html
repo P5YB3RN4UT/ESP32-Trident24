@@ -515,18 +515,14 @@
       if (type === 'DEAUTH') {
         const src = dataObj.src || 'UNKNOWN';
         const dst = dataObj.dst || 'UNKNOWN';
-        // Strict 1-line layout: Time, Type, Data, then right-aligned buttons with padding to clear scrollbar
-        details = `<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-                     <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                       <span class="history-time">[${timeStr}]</span> <span class="history-type warning">${type}</span> 
-                       <span style="color: var(--term-dim);">SRC:</span> ${src} <span style="color: var(--term-dim);">-></span> <span style="color: var(--term-dim);">DST:</span> ${dst}
-                     </span>
-                     <span style="white-space: nowrap; flex-shrink: 0; padding-right: 12px;">
-                       <button class="ignore-btn" data-mac="${src}">Ignore SRC</button>
-                       <button class="ignore-btn" data-mac="${dst}">Ignore DST</button>
-                       <button class="ignore-btn oui-btn" data-mac="${src}">OUI SRC</button>
-                       <button class="ignore-btn oui-btn" data-mac="${dst}">OUI DST</button>
-                     </span>
+        // Changed: Removed flexbox, buttons now flow inline with text and wrap together
+        details = `<div>
+                     <span class="history-time">[${timeStr}]</span> <span class="history-type warning">${type}</span> 
+                     <span style="color: var(--term-dim);">SRC:</span> ${src} <span style="color: var(--term-dim);">|</span> <span style="color: var(--term-dim);">DST:</span> ${dst}
+                     <button class="ignore-btn" data-mac="${src}">Ignore SRC</button>
+                     <button class="ignore-btn" data-mac="${dst}">Ignore DST</button>
+                     <button class="ignore-btn oui-btn" data-mac="${src}">OUI SRC</button>
+                     <button class="ignore-btn oui-btn" data-mac="${dst}">OUI DST</button>
                    </div>`;
       } else if (type === 'JAMMING') {
         const statusDisplay = dataObj.status ? `Status: <span style="color:${dataObj.status === 'JAM DETECTED' ? '#ff0040' : 'var(--term-yellow)'}">${dataObj.status}</span> | ` : '';
@@ -550,11 +546,10 @@
         if (dstBtn) actionButtons += dstBtn;
         actionButtons = actionButtons.trim();
 
-        // 2-line layout: Line 1 has Time, Type (red), and packet details. Line 2 has MACs and right-aligned buttons with padding to clear scrollbar.
-        details = `<span class="history-time">[${timeStr}]</span> <span class="history-type warning">${type}</span> <span style="color: var(--term-dim); font-size: 10px;">| Type: ${frameType} | Len: ${len} bytes | Data: ${hexData}</span><br>
-                   <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 2px;">
-                     <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><span style="color: var(--term-dim);">BSSID:</span> ${bssid} | <span style="color: var(--term-dim);">SRC:</span> ${src} <span style="color: var(--term-dim);">-></span> <span style="color: var(--term-dim);">DST:</span> ${dst}</span>
-                     <span style="white-space: nowrap; flex-shrink: 0; padding-right: 12px;">${actionButtons}</span>
+        // Changed: Removed flexbox, everything flows inline and wraps together naturally
+        details = `<div>
+                     <span class="history-time">[${timeStr}]</span> <span class="history-type warning">${type}</span> <span style="color: var(--term-dim); font-size: 10px;">| Type: ${frameType} | Len: ${len} bytes | Data: ${hexData}</span><br>
+                     <span style="color: var(--term-dim);">BSSID:</span> ${bssid} | <span style="color: var(--term-dim);">SRC:</span> ${src} <span style="color: var(--term-dim);">|</span> <span style="color: var(--term-dim);">DST:</span> ${dst} ${actionButtons}
                    </div>`;
       }
       
