@@ -63,8 +63,8 @@
       flex-direction: column;
     }
     .overview-right {
-      flex: 0.6;
-      min-width: 200px;
+      flex: 0.45;
+      min-width: 160px;
       display: flex;
       flex-direction: row;
       gap: 8px;
@@ -132,27 +132,8 @@
       margin-left: 5px;
       font-family: inherit;
       vertical-align: middle;
-      position: relative;
     }
     .ignore-btn:hover { color: #ff0040; border-color: #ff0040; }
-    .oui-btn[data-full-oui]:hover::after {
-      content: attr(data-full-oui);
-      position: absolute;
-      bottom: calc(100% + 5px);
-      left: 0;
-      background-color: var(--bg-color);
-      color: var(--term-green);
-      border: 1px solid var(--term-green);
-      padding: 4px 8px;
-      font-size: 11px;
-      white-space: nowrap;
-      z-index: 100;
-      box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
-      pointer-events: none;
-      opacity: 0;
-      animation: fadeIn 0.2s forwards;
-    }
-    @keyframes fadeIn { to { opacity: 1; } }
     .ignored-entry { opacity: 0.4; text-decoration: line-through; }
 
     #spectrumCanvas {
@@ -195,6 +176,8 @@
 
     .sniff-history .history-container {
       border-top: none;
+      margin-top: 0;
+      padding-top: 0;
     }
   </style>
 </head>
@@ -373,8 +356,8 @@
     const wfGridCtx = wfGridCanvas.getContext('2d');
 
     function resizeCanvas() {
-      canvas.width = canvas.clientWidth;
-      canvas.height = canvas.clientHeight;
+      canvas.width = Math.floor(canvas.clientWidth);
+      canvas.height = Math.floor(canvas.clientHeight);
     }
     
     function drawWaterfallGrid() {
@@ -417,8 +400,8 @@
 
     function resizeWaterfall() {
       const wrapper = wfCanvas.parentElement;
-      const w = wrapper.clientWidth;
-      const h = wrapper.clientHeight;
+      const w = Math.floor(wrapper.clientWidth);
+      const h = Math.floor(wrapper.clientHeight);
       
       wfCanvas.width = w;
       wfCanvas.height = h;
@@ -508,7 +491,8 @@
             let color = '#00ff41';
             if (val > 35) color = '#ff0040';
             wfCtx.fillStyle = color;
-            wfCtx.fillRect(i * colWidth, wfGraphHeight - 1, colWidth, 1);
+            // Adjusted to lose 1px on the left and 1px on the right for cleaner grid alignment
+            wfCtx.fillRect(i * colWidth + 1, wfGraphHeight - 1, colWidth - 2, 1);
           }
         }
         newWaterfallLineReady = false;
@@ -519,8 +503,8 @@
     
     requestAnimationFrame(animate);
 
-    // Updated to accept a 5th parameter (info4) for the hex data
-    function addHistoryEntry(containerId, type, info1, info2, info3 = '', statusText = '', info4 = '') {
+    // Refactored to use a data object for cleaner, safer argument passing
+    function addHistoryEntry(containerId, type, dataObj) {
       const container = document.getElementById(containerId);
       const timeStr = getTimestamp();
       
@@ -529,26 +513,52 @@
       
       let details = '';
       if (type === 'DEAUTH') {
-        details = `SRC: ${info1} | DST: ${info2} 
-                   <button class="ignore-btn" data-mac="${info1}">Ignore SRC</button>
-                   <button class="ignore-btn" data-mac="${info2}">Ignore DST</button>
-                   <button class="ignore-btn oui-btn" data-mac="${info1}">OUI SRC</button>
-                   <button class="ignore-btn oui-btn" data-mac="${info2}">OUI DST</button>`;
+        const src = dataObj.src || 'UNKNOWN';
+        const dst = dataObj.dst || 'UNKNOWN';
+        // Strict 1-line layout: Time, Type, Data, then right-aligned buttons with padding to clear scrollbar
+        details = `<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                     <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                       <span class="history-time">[${timeStr}]</span> <span class="history-type warning">${type}</span> 
+                       <span style="color: var(--term-dim);">SRC:</span> ${src} <span style="color: var(--term-dim);">-></span> <span style="color: var(--term-dim);">DST:</span> ${dst}
+                     </span>
+                     <span style="white-space: nowrap; flex-shrink: 0; padding-right: 12px;">
+                       <button class="ignore-btn" data-mac="${src}">Ignore SRC</button>
+                       <button class="ignore-btn" data-mac="${dst}">Ignore DST</button>
+                       <button class="ignore-btn oui-btn" data-mac="${src}">OUI SRC</button>
+                       <button class="ignore-btn oui-btn" data-mac="${dst}">OUI DST</button>
+                     </span>
+                   </div>`;
       } else if (type === 'JAMMING') {
-        const statusDisplay = statusText ? `Status: <span style="color:${statusText === 'JAM DETECTED' ? '#ff0040' : 'var(--term-yellow)'}">${statusText}</span> | ` : '';
-        details = `${statusDisplay}Noisy Ch: ${info1}/100 | Intensity: ${info3}% | Flood: ${info2 ? 'YES' : 'NO'}`;
+        const statusDisplay = dataObj.status ? `Status: <span style="color:${dataObj.status === 'JAM DETECTED' ? '#ff0040' : 'var(--term-yellow)'}">${dataObj.status}</span> | ` : '';
+        // Strict 1-line layout for Jamming
+        details = `<span class="history-time">[${timeStr}]</span> <span class="history-type warning">${type}</span> <span style="color: var(--term-dim); font-size: 10px;">| ${statusDisplay}Noisy Ch: ${dataObj.noisyCh}/100 | Intensity: ${dataObj.intensity}% | Flood: ${dataObj.flood ? 'YES' : 'NO'}</span>`;
       } else if (type === 'SNIFFER') {
-        // info1=src, info2=dst, info3=len, statusText=frameType, info4=hexData
-        let srcBtn = info1 !== 'Mac undetected' ? `<button class="ignore-btn oui-btn" data-mac="${info1}">OUI</button>` : '';
-        let dstBtn = info2 !== 'Mac undetected' ? `<button class="ignore-btn oui-btn" data-mac="${info2}">OUI</button>` : '';
+        const src = dataObj.src || 'UNKNOWN';
+        const dst = dataObj.dst || 'UNKNOWN';
+        const bssid = dataObj.bssid || 'UNKNOWN';
+        const len = dataObj.len || 0;
+        const frameType = dataObj.frameType || 'Unknown';
+        const hexData = dataObj.hexData || '';
+
+        let srcBtn = (src !== 'Mac undetected' && src !== 'UNKNOWN') ? `<button class="ignore-btn oui-btn" data-mac="${src}">OUI SRC</button>` : '';
+        let dstBtn = (dst !== 'Mac undetected' && dst !== 'UNKNOWN') ? `<button class="ignore-btn oui-btn" data-mac="${dst}">OUI DST</button>` : '';
+        let bssidBtn = (bssid !== 'Mac undetected' && bssid !== 'UNKNOWN') ? `<button class="ignore-btn oui-btn" data-mac="${bssid}">OUI BSSID</button>` : '';
         
-        // Line 1: MACs and OUI buttons
-        // Line 2: Indented Len and Data
-        details = `Type: ${statusText} | SRC: ${info1} ${srcBtn} | DST: ${info2} ${dstBtn}<br>
-                   <span style="margin-left: 20px; color: var(--term-dim); font-size: 10px;">Len: ${info3} bytes | Data: ${info4}</span>`;
+        let actionButtons = '';
+        if (bssidBtn) actionButtons += bssidBtn + ' ';
+        if (srcBtn) actionButtons += srcBtn + ' ';
+        if (dstBtn) actionButtons += dstBtn;
+        actionButtons = actionButtons.trim();
+
+        // 2-line layout: Line 1 has Time, Type (red), and packet details. Line 2 has MACs and right-aligned buttons with padding to clear scrollbar.
+        details = `<span class="history-time">[${timeStr}]</span> <span class="history-type warning">${type}</span> <span style="color: var(--term-dim); font-size: 10px;">| Type: ${frameType} | Len: ${len} bytes | Data: ${hexData}</span><br>
+                   <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 2px;">
+                     <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><span style="color: var(--term-green);">BSSID:</span> ${bssid} | <span style="color: var(--term-dim);">SRC:</span> ${src} <span style="color: var(--term-dim);">-></span> <span style="color: var(--term-dim);">DST:</span> ${dst}</span>
+                     <span style="white-space: nowrap; flex-shrink: 0; padding-right: 12px;">${actionButtons}</span>
+                   </div>`;
       }
       
-      entry.innerHTML = `<span class="history-time">[${timeStr}]</span> <span class="history-type warning">${type}</span> ${details}`;
+      entry.innerHTML = details;
       container.insertBefore(entry, container.firstChild);
       
       while (container.children.length > 1000) {
@@ -582,7 +592,10 @@
       deauthStatusEl.className = currentDeauthState ? 'value warning' : 'value';
 
       if (currentDeauthState && !lastDeauthState) {
-        addHistoryEntry('deauthHistory', 'DEAUTH', data.lastDeauthSrc, data.lastDeauthDst);
+        addHistoryEntry('deauthHistory', 'DEAUTH', {
+          src: data.lastDeauthSrc,
+          dst: data.lastDeauthDst
+        });
       }
       lastDeauthState = currentDeauthState;
       
@@ -627,13 +640,23 @@
 
       const isJamPossible = !data.isJammed && (noisyCh >= 3);
       if (isJamPossible && !lastJamPossibleState) {
-        addHistoryEntry('jamHistory', 'JAMMING', data.noisyChannels, data.isPacketFlood, data.jamIntensity || 0, 'JAM POSSIBLE');
+        addHistoryEntry('jamHistory', 'JAMMING', {
+          noisyCh: data.noisyChannels,
+          flood: data.isPacketFlood,
+          intensity: data.jamIntensity || 0,
+          status: 'JAM POSSIBLE'
+        });
       }
       lastJamPossibleState = isJamPossible;
 
       const currentJamState = data.isJammed;
       if (currentJamState && !lastJamState) {
-        addHistoryEntry('jamHistory', 'JAMMING', data.noisyChannels, data.isPacketFlood, data.jamIntensity || 0, 'JAM DETECTED');
+        addHistoryEntry('jamHistory', 'JAMMING', {
+          noisyCh: data.noisyChannels,
+          flood: data.isPacketFlood,
+          intensity: data.jamIntensity || 0,
+          status: 'JAM DETECTED'
+        });
       }
       lastJamState = currentJamState;
       
@@ -647,14 +670,14 @@
       document.getElementById('lastSniffData').innerText = data.lastSniffData || 'WAITING...';
 
       if (data.lastSniffData && data.lastSniffData !== 'Waiting...' && data.lastSniffData !== lastLoggedSniffData) {
-        let srcMac = data.lastSniffSrc || 'Mac undetected';
-        let dstMac = data.lastSniffDst || 'Mac undetected';
-        let len = data.lastSniffLen || 0;
-        let hexData = data.lastSniffData || '';
-        let frameType = data.lastFrameType || 'Unknown';
-        
-        // Updated call to pass len and hexData as separate arguments
-        addHistoryEntry('sniffHistory', 'SNIFFER', srcMac, dstMac, len, frameType, hexData);
+        addHistoryEntry('sniffHistory', 'SNIFFER', {
+          src: data.lastSniffSrc || 'Mac undetected',
+          dst: data.lastSniffDst || 'Mac undetected',
+          bssid: data.lastSniffBssid || 'Mac undetected',
+          len: data.lastSniffLen || 0,
+          frameType: data.lastFrameType || 'Unknown',
+          hexData: data.lastSniffData || ''
+        });
         lastLoggedSniffData = data.lastSniffData;
       }
 
